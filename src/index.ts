@@ -337,6 +337,24 @@ const RESOURCE_FILES: Array<{
     description: "日本市場向けプレゼン資料ルール（20枚以上、構成テンプレート等）",
     file: "japanese-market-rules.md",
   },
+  {
+    uri: "pptx://rules",
+    name: "PPTX Production Rules",
+    description: "資料作成の必須ルール（デザインバランス、垂直中央配置、画像扱い、破損防止チェックリスト等）",
+    file: "RULES.md",
+  },
+  {
+    uri: "pptx://html2pptx",
+    name: "HTML to PPTX Guide",
+    description: "HTML→PPTX変換ガイド（html2pptx.jsの使い方）",
+    file: "html2pptx.md",
+  },
+  {
+    uri: "pptx://ooxml",
+    name: "OOXML Reference",
+    description: "OOXML直接操作リファレンス（XML構造、名前空間、要素一覧）",
+    file: "ooxml.md",
+  },
 ];
 
 for (const res of RESOURCE_FILES) {
