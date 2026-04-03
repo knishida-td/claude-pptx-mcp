@@ -1,0 +1,31 @@
+{
+  "name": "claude-pptx-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for PowerPoint creation and editing",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-pptx-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "scripts",
+    "resources"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/node": "^22.0.0"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
