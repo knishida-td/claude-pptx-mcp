@@ -2,7 +2,8 @@
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-import { execFile } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -15,8 +16,30 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = join(__dirname, "..");
 const SCRIPTS_DIR = join(PROJECT_ROOT, "scripts");
 const RESOURCES_DIR = join(PROJECT_ROOT, "resources");
+const VENV_DIR = join(PROJECT_ROOT, ".venv");
+const SETUP_SCRIPT = join(SCRIPTS_DIR, "setup.sh");
 
-const PYTHON = process.env.PPTX_PYTHON ?? "python3";
+// Run setup if not done yet (installs python-pptx, Pillow, etc.)
+if (!existsSync(join(VENV_DIR, ".setup-done"))) {
+  try {
+    execFileSync("bash", [SETUP_SCRIPT], {
+      stdio: ["ignore", "pipe", "inherit"],
+      timeout: 300_000, // 5 min max for LibreOffice install
+    });
+  } catch {
+    // Non-fatal: tools may still work partially
+    process.stderr.write(
+      "[claude-pptx-mcp] WARNING: Auto-setup failed. Some tools may not work.\n"
+    );
+  }
+}
+
+// Use venv Python if available, otherwise fall back to system python3
+const PYTHON =
+  process.env.PPTX_PYTHON ??
+  (existsSync(join(VENV_DIR, "bin", "python3"))
+    ? join(VENV_DIR, "bin", "python3")
+    : "python3");
 
 // ---------------------------------------------------------------------------
 // Helpers
