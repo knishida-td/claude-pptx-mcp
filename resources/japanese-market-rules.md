@@ -241,7 +241,7 @@ open "/tmp/pptx-project/output.pptx"
 薄い提案書は信頼されない。**提案資料は20枚以上**で厚みを持たせる。以下の構成を標準テンプレートとする。
 
 ```
-推奨構成（24枚の実績テンプレート: /tmp/bijin-ec-proposal-v5.js）
+推奨構成（24枚の実績テンプレート: /tmp/sample-ec-proposal-v5.js）
 
 [導入]
  1. タイトル（Type A）— 社名御中 + 提案書タイトル + サブタイトル + 日付

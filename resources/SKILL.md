@@ -26,8 +26,8 @@ license: Proprietary. LICENSE.txt has complete terms
 
 PPTXファイルを上書きしない。変更のたびに新バージョンで出力する。
 ```
-❌ VALX事業改善提案_slidekit.pptx（同名上書き）
-✅ VALX事業改善提案_slidekit_v1.pptx → _v2.pptx → _v3.pptx
+❌ 事業改善提案_slidekit.pptx（同名上書き）
+✅ 事業改善提案_slidekit_v1.pptx → _v2.pptx → _v3.pptx
 ```
 生成スクリプトも同様にバージョンを上げる（`generate-xxx-v2.js` → `-v3.js`）。
 
@@ -78,7 +78,7 @@ Use when no template or reference presentation is available.
 
 提案書・改善提案は **最低20枚以上** で厚みを持たせる。
 構成テンプレートは [japanese-market-rules.md](japanese-market-rules.md) の「提案資料の標準構成」を参照。
-実績のある参照スクリプト: `/tmp/bijin-ec-proposal-v5.js`（24枚・SlideKit準拠・実データ反映済み）
+実績のある参照スクリプト: `/tmp/sample-ec-proposal-v5.js`（24枚・SlideKit準拠・実データ反映済み）
 
 ---
 

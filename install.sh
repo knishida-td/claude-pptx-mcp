@@ -66,6 +66,24 @@ else
   echo "  CLAUDE.md にPPTX生成ルールは設定済みです"
 fi
 
+# validate-slidekit.sh をインストール
+VALIDATE_SRC=""
+for candidate in \
+  "$(cd "$(dirname "$0")" 2>/dev/null && pwd)/scripts/validate-slidekit.sh" \
+  "$(npm root -g 2>/dev/null)/claude-pptx-mcp/scripts/validate-slidekit.sh"; do
+  if [ -f "$candidate" 2>/dev/null ]; then
+    VALIDATE_SRC="$candidate"
+    break
+  fi
+done
+
+if [ -n "$VALIDATE_SRC" ] && [ -f "$VALIDATE_SRC" ]; then
+  mkdir -p "$HOME/.claude/scripts"
+  cp "$VALIDATE_SRC" "$HOME/.claude/scripts/validate-slidekit.sh"
+  chmod +x "$HOME/.claude/scripts/validate-slidekit.sh"
+  echo "  validate-slidekit.sh をインストールしました"
+fi
+
 # PostToolUse hook を登録（PPTX生成後のQAリマインダー）
 HOOKS_FILE="$HOME/.claude/hooks/hooks.json"
 HOOK_SCRIPT_DIR="$HOME/.claude/scripts/hooks"

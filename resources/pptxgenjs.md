@@ -11,7 +11,7 @@
 ## SlideKit用ヘルパー関数テンプレート
 
 SlideKitデザインシステムでPptxGenJSを使う場合、以下のヘルパー関数セットを必ず定義する。
-実績テンプレート: `/tmp/bijin-ec-proposal-v5.js`
+実績テンプレート: `/tmp/sample-ec-proposal-v5.js`
 
 ```javascript
 const C = { bg:"F5F5F5", title:"222222", body:"333333", sub:"666666", muted:"AAAAAA",
