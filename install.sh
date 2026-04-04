@@ -66,5 +66,59 @@ else
   echo "  CLAUDE.md にPPTX生成ルールは設定済みです"
 fi
 
+# PostToolUse hook を登録（PPTX生成後のQAリマインダー）
+HOOKS_FILE="$HOME/.claude/hooks/hooks.json"
+HOOK_SCRIPT_DIR="$HOME/.claude/scripts/hooks"
+HOOK_SCRIPT="post-bash-pptx-qa.sh"
+
+# install.sh が curl | bash で実行された場合、HOOK_SRC は取得できないので
+# npx 経由でインストールされたパスから探す
+HOOK_SRC=""
+for candidate in \
+  "$(cd "$(dirname "$0")" 2>/dev/null && pwd)/scripts/$HOOK_SCRIPT" \
+  "$(npm root -g 2>/dev/null)/claude-pptx-mcp/scripts/$HOOK_SCRIPT"; do
+  if [ -f "$candidate" 2>/dev/null ]; then
+    HOOK_SRC="$candidate"
+    break
+  fi
+done
+
+# hookスクリプトをコピー
+mkdir -p "$HOOK_SCRIPT_DIR"
+if [ -n "$HOOK_SRC" ] && [ -f "$HOOK_SRC" ]; then
+  cp "$HOOK_SRC" "$HOOK_SCRIPT_DIR/$HOOK_SCRIPT"
+  chmod +x "$HOOK_SCRIPT_DIR/$HOOK_SCRIPT"
+  echo "  QAリマインダーhookをインストールしました"
+fi
+
+# hooks.json に登録（既に登録済みならスキップ）
+if [ -f "$HOOKS_FILE" ] && grep -q "post-bash-pptx-qa" "$HOOKS_FILE" 2>/dev/null; then
+  echo "  hooks.json にQA hookは設定済みです"
+else
+  python3 -c "
+import json, os
+path = '$HOOKS_FILE'
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+else:
+    data = {'hooks': {}}
+
+post = data.setdefault('hooks', {}).setdefault('PostToolUse', [])
+if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
+    post.append({
+        'matcher': 'Bash',
+        'hooks': [{'type': 'command', 'command': 'bash ~/.claude/scripts/hooks/post-bash-pptx-qa.sh'}],
+        'description': 'PPTX生成検出時にQAリマインダーを表示'
+    })
+
+os.makedirs(os.path.dirname(path), exist_ok=True)
+with open(path, 'w') as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+  echo "  hooks.json にQA hookを登録しました"
+fi
+
 echo "✅ インストール完了！Claude Codeを再起動してください。"
 echo "   資料作成は「資料作って」と話しかけるだけでOKです。"
