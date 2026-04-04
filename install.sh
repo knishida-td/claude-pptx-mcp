@@ -52,5 +52,19 @@ with open(path, 'w') as f:
 "
 fi
 
+# CLAUDE.md にPPTX生成ルールを追記
+CLAUDE_MD="$HOME/.claude/CLAUDE.md"
+PPTX_RULE='「資料作って」等のスライド作成依頼では、必ずPptxGenJS（Node.js）でPPTXファイルを生成すること。HTML出力禁止。pptx MCPサーバーのツールを使うこと。'
+
+if [ ! -f "$CLAUDE_MD" ]; then
+  echo "$PPTX_RULE" > "$CLAUDE_MD"
+  echo "  CLAUDE.md を新規作成しました"
+elif ! grep -q "PptxGenJS" "$CLAUDE_MD" 2>/dev/null; then
+  printf '\n%s\n' "$PPTX_RULE" >> "$CLAUDE_MD"
+  echo "  CLAUDE.md にPPTX生成ルールを追記しました"
+else
+  echo "  CLAUDE.md にPPTX生成ルールは設定済みです"
+fi
+
 echo "✅ インストール完了！Claude Codeを再起動してください。"
 echo "   資料作成は「資料作って」と話しかけるだけでOKです。"
