@@ -66,6 +66,31 @@ async function readResource(filename: string): Promise<string> {
 }
 
 // ---------------------------------------------------------------------------
+// Design rules injected into every tool response
+// ---------------------------------------------------------------------------
+
+const DESIGN_RULES_SUMMARY = `
+───── SlideKit必須ルール（この指示に従うこと） ─────
+■ 出力: 必ずPPTXファイル。HTML出力禁止
+■ カラー: 背景F5F5F5 / テキスト333333 / タイトル222222 / アクセントEF4823 / セカンダリFCBF17 / KeyMsg背景FFF5F0
+■ フォント: 全テキスト Hiragino Kaku Gothic Pro W3
+  タイトル22pt bold / 本文14pt / セクション見出し16pt bold(EF4823) / KeyMsg18pt bold(EF4823) / ページ番号9pt(AAAAAA)
+■ 共通コンポーネント(inch): Title(0.5,0.39,9.0,0.45) / RedLine(0.5,0.857,4.25,0.035) / YellowLine(4.75,0.857,4.75,0.035) / KeyMsgBg(0.5,4.837,9.0,0.4) / PageNum(9.2,5.337,0.5,0.25)
+■ 本体コンテンツ領域: y=0.893〜4.837 (高さ3.944")
+■ 縦中央配置(例外なし): ideal_top = 0.893 + (3.944 - contentH) / 2
+■ KeyMsg: 28全角文字以内（超過→短縮必須）
+■ 横並びプロセスフロー: 3ステップまで。4つ以上→縦リスト
+■ 提案資料: 20枚以上
+■ 画像必須: テキストだけのプレゼン禁止。実物写真を使う
+■ バージョン管理: _v1.pptx → _v2.pptx。上書き禁止
+■ 詳細はリソース pptx://slidekit, pptx://rules, pptx://pptxgenjs を参照
+──────────────────────────────────────`.trim();
+
+function withDesignRules(output: string): string {
+  return `${output}\n\n${DESIGN_RULES_SUMMARY}`;
+}
+
+// ---------------------------------------------------------------------------
 // Server
 // ---------------------------------------------------------------------------
 
@@ -271,7 +296,7 @@ server.tool(
     const { stdout, stderr } = await runPython("inventory.py", args);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -298,7 +323,7 @@ server.tool(
     const { stdout, stderr } = await runPython("thumbnail.py", args);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -322,7 +347,7 @@ server.tool(
     ]);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -346,7 +371,7 @@ server.tool(
     ]);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -366,7 +391,7 @@ server.tool(
     ]);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -394,7 +419,7 @@ server.tool(
     const { stdout, stderr } = await runPython("office/pack.py", args);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -418,7 +443,7 @@ server.tool(
     ]);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -453,7 +478,7 @@ server.tool(
     const { stdout, stderr } = await runPython("add_image.py", args);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -469,7 +494,7 @@ server.tool(
     const { stdout, stderr } = await runPython("clean.py", [unpacked_dir]);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
@@ -491,7 +516,7 @@ server.tool(
     const { stdout, stderr } = await runPython("office/validate.py", args);
     return {
       content: [
-        { type: "text" as const, text: stdout || stderr || "完了" },
+        { type: "text" as const, text: withDesignRules(stdout || stderr || "完了") },
       ],
     };
   }
