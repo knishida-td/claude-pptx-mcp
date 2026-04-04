@@ -16,27 +16,25 @@ if [ ! -f "$SETTINGS_FILE" ]; then
   echo "  settings.json を新規作成しました"
 fi
 
-# 既に設定済みならスキップ
+# MCPサーバー登録（未登録の場合のみ）
 if grep -q "claude-pptx-mcp" "$SETTINGS_FILE" 2>/dev/null; then
-  echo "✅ 既にインストール済みです。Claude Codeを再起動してください。"
-  exit 0
-fi
-
-# Node.js チェック
-if ! command -v node &>/dev/null; then
-  echo "❌ Node.js が見つかりません。先にインストールしてください:"
-  echo "   https://nodejs.org/"
-  exit 1
-fi
-
-# jq があれば使う、なければ Python で編集
-if command -v jq &>/dev/null; then
-  tmp=$(mktemp)
-  jq --argjson pptx "{\"command\":\"npx\",\"args\":[\"-y\",\"github:knishida-td/claude-pptx-mcp\"]}" \
-    '.mcpServers = (.mcpServers // {}) | .mcpServers.pptx = $pptx' \
-    "$SETTINGS_FILE" > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
+  echo "  MCPサーバーは登録済みです"
 else
-  python3 -c "
+  # Node.js チェック
+  if ! command -v node &>/dev/null; then
+    echo "❌ Node.js が見つかりません。先にインストールしてください:"
+    echo "   https://nodejs.org/"
+    exit 1
+  fi
+
+  # jq があれば使う、なければ Python で編集
+  if command -v jq &>/dev/null; then
+    tmp=$(mktemp)
+    jq --argjson pptx "{\"command\":\"npx\",\"args\":[\"-y\",\"github:knishida-td/claude-pptx-mcp\"]}" \
+      '.mcpServers = (.mcpServers // {}) | .mcpServers.pptx = $pptx' \
+      "$SETTINGS_FILE" > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
+  else
+    python3 -c "
 import json, sys
 path = '$SETTINGS_FILE'
 with open(path) as f:
@@ -50,6 +48,8 @@ with open(path, 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write('\n')
 "
+  fi
+  echo "  MCPサーバーを登録しました"
 fi
 
 # CLAUDE.md にPPTX生成ルールを追記
