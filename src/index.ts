@@ -120,7 +120,7 @@ const INSTRUCTIONS = `# PPTX資料作成MCPサーバー
 | RedLine | 0.5 | 0.857 | 4.25 | 0.035 | fill=EF4823 |
 | YellowLine | 4.75 | 0.857 | 4.75 | 0.035 | fill=FCBF17 |
 | KeyMsgBg | 0.5 | 4.837 | 9.0 | 0.4 | roundRect, fill=FFF5F0 |
-| KeyMsgText | 0.5 | 4.837 | 9.0 | 0.4 | 18pt bold, EF4823, 中央揃え |
+| KeyMsgText | 0.5 | 4.837 | 9.0 | 0.4 | 18pt bold, EF4823, 中央揃え, **28全角文字以内** |
 | PageNum | 9.2 | 5.337 | 0.5 | 0.25 | 9pt, AAAAAA, 右揃え |
 
 **本体コンテンツ領域**: y=0.893〜4.837 (高さ3.944")
@@ -188,6 +188,7 @@ function centerY(contentH) { return BODY_TOP + (BODY_H - contentH) / 2; }
 - **画像の縦横比は絶対に変えない**
 - **提案資料は20枚以上**: 導入(2) + 分析(6-8) + 施策(8-10) + 効果(4) + クロージング(1)
 - **1スライド1キーメッセージ**
+- **KeyMsgは28全角文字以内**: KeyMsgBarの幅(9.0")に18pt boldで1行に収まる上限。超えたら短縮する
 - **ホワイトスペース**: スライド面積の30-50%
 - **バージョン管理**: _v1.pptx → _v2.pptx。上書き禁止
 
