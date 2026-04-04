@@ -72,39 +72,172 @@ async function readResource(filename: string): Promise<string> {
 const INSTRUCTIONS = `# PPTX資料作成MCPサーバー
 
 このサーバーはPowerPoint資料の作成・編集を行うツールとルールを提供します。
+**以下のデザインルールに必ず従うこと。リソースを読まなくてもこのINSTRUCTIONSだけで正しいスライドを作れる。**
 
 ## いつ使うか
 
 ユーザーが「資料作って」「スライド作って」「プレゼン作って」「提案書作って」「deck作って」と言ったら、
 またはPPTXファイルに言及したら、このサーバーのツールを使って作業してください。
+**HTML出力は禁止。必ずPPTXファイルを生成すること。**
 
-## 資料を新規作成するワークフロー
+---
 
-1. **まずルールを読む**: リソース pptx://rules と pptx://slidekit を読み、デザインルールを把握する
-2. **作成方法を選ぶ**:
-   - ゼロから作成 → pptx://pptxgenjs を読み、PptxGenJS（Node.js）でスライドを生成
-   - 既存テンプレートから作成 → pptx://editing-workflow を読み、unpack→edit→packの流れで編集
-3. **SlideKitデザインシステムに従う**: カラーパレット（背景#F5F5F5、アクセント#EF4823）、フォント（Hiragino Kaku Gothic Pro W3）、コンポーネント配置は全て pptx://slidekit に定義済み
-4. **提案資料は20枚以上**: 導入(2枚) + 分析(6-8枚) + 施策(8-10枚) + 効果(4枚) + クロージング(1枚)
-5. **全スライドのコンテンツを縦中央に配置する**（例外なし）
-6. **画像は必ず入れる**: テキストだけのプレゼンは禁止。対象企業の実物写真を使う
-7. **生成後はテキスト溢れチェック**: pptx_thumbnail でサムネイルを生成し、テキストの溢れ・切れがないか確認。問題があれば修正→再チェックをループ
-8. **バージョン管理**: ファイル名に _v1.pptx, _v2.pptx と版番号を付ける。上書き禁止
+## SlideKitデザインシステム（必須）
 
-## 既存PPTXを編集するワークフロー
+### カラーパレット（60-30-10ルール）
+| 役割 | HEX | 用途 |
+|---|---|---|
+| 背景(60%) | F5F5F5 | 全スライド統一 |
+| テキスト(30%) | 333333 | 本文 |
+| タイトル | 222222 | スライドタイトル |
+| 補足 | 666666 | 副テキスト |
+| ミュート | AAAAAA | ページ番号 |
+| アクセント(10%) | EF4823 | 見出し・KeyMsg・アクセントバー |
+| セカンダリ | FCBF17 | YellowLine |
+| KeyMsg背景 | FFF5F0 | KeyMsgBar背景 |
+| セパレーター | EEEEEE | 細い区切り線 |
+| デバイダー | DDDDDD | 太い縦区切り線 |
 
-1. pptx_thumbnail で既存スライドを確認
-2. pptx_inventory でテキスト内容を抽出
-3. pptx_unpack → XMLを直接編集 → pptx_clean → pptx_pack
-4. 破損防止ルール（pptx://rules の「PPTX破損防止チェックリスト」）を必ず守る
+### フォント
+全テキスト統一: Hiragino Kaku Gothic Pro W3
+
+| 要素 | サイズ(pt) | bold | 色 |
+|---|---|---|---|
+| スライドタイトル | 22 | Yes | 222222 |
+| ヒーローテキスト | 28-40 | Yes | EF4823 |
+| セクション見出し | 16 | Yes | EF4823 |
+| 本文 | 14 | No | 333333 |
+| キーメッセージ | 18 | Yes | EF4823 |
+| ページ番号 | 9 | No | AAAAAA |
+| 副テキスト | 12 | No | 666666 |
+
+### 共通コンポーネント（固定座標）
+スライドサイズ: 10"×5.625"（16:9）
+
+| 要素 | x(inch) | y(inch) | w | h | 備考 |
+|---|---|---|---|---|---|
+| Title | 0.5 | 0.39 | 9.0 | 0.45 | 22pt bold, 中央揃え |
+| RedLine | 0.5 | 0.857 | 4.25 | 0.035 | fill=EF4823 |
+| YellowLine | 4.75 | 0.857 | 4.75 | 0.035 | fill=FCBF17 |
+| KeyMsgBg | 0.5 | 4.837 | 9.0 | 0.4 | roundRect, fill=FFF5F0 |
+| KeyMsgText | 0.5 | 4.837 | 9.0 | 0.4 | 18pt bold, EF4823, 中央揃え |
+| PageNum | 9.2 | 5.337 | 0.5 | 0.25 | 9pt, AAAAAA, 右揃え |
+
+**本体コンテンツ領域**: y=0.893〜4.837 (高さ3.944")
+
+### PptxGenJSヘルパーテンプレート
+\`\`\`javascript
+const C = { bg:"F5F5F5", title:"222222", body:"333333", sub:"666666", muted:"AAAAAA",
+  primary:"EF4823", secondary:"FCBF17", kmBg:"FFF5F0", sep:"EEEEEE", divider:"DDDDDD", white:"FFFFFF" };
+const FONT = "Hiragino Kaku Gothic Pro W3";
+const SW = 10, SH = 5.625;
+const HDR = { titleX:0.5, titleY:0.39, titleW:9.0, titleH:0.45,
+  redLineX:0.5, redLineY:0.857, redLineW:4.25, redLineH:0.035,
+  yellowLineX:4.75, yellowLineY:0.857, yellowLineW:4.75, yellowLineH:0.035 };
+const KM = { x:0.5, y:4.837, w:9.0, h:0.4 };
+const PN = { x:9.2, y:5.337, w:0.5, h:0.25 };
+const BODY_TOP = 0.893, BODY_BOT = 4.837, BODY_H = BODY_BOT - BODY_TOP;
+function centerY(contentH) { return BODY_TOP + (BODY_H - contentH) / 2; }
+\`\`\`
+
+---
+
+## レイアウトルール
+
+### 縦中央配置（全スライド必須・例外なし）
+- **コンテンツスライド**: ヘッダー下端(0.893")〜KeyMsg上端(4.837")の領域で本体を縦中央
+  - 計算: ideal_top = 0.893 + (3.944 - contentH) / 2
+- **セクション/タイトルスライド**: スライド全体(5.625")で縦中央
+  - 計算: ideal_top = (5.625 - contentH) / 2
+- **CTA/エンドスライド**: 縦中央 AND 左右中央。固定値のx/y決め打ち禁止
+
+### テキストボックスのサイズ
+- 幅はテキスト量に合わせる（広すぎると右に空白ができる）
+- 高さ(cy)は実際のテキスト量に合わせる。巨大な空きボックス禁止
+- 日本語16ptで1行≈25-28文字、14ptで1行≈41文字(w=8")
+
+### 要素間スペーシング
+- グループ内: 0.15"
+- グループ間: 0.3"
+- セクション間: 0.6"
+- gap=0は禁止
+
+### マージン
+- 外側マージン: 0.5"（全辺統一）
+- コンテンツ領域: x=0.5〜9.5, y=0.5〜5.125
+
+---
+
+## レイアウトパターン
+
+### コンテンツスライド(Type C)
+大見出し+補足 / 左右2カラム / 3カラムグリッド / 番号付きリスト / 定義ブロック / Before→After / 2×2グリッド / 因果フロー / プロセスフロー(3ステップまで) / 番号付き縦リスト(4ステップ以上) / A/B選択肢
+
+### 横並びプロセスフローは3ステップが上限
+4ステップ以上 → 番号付き縦リストに切り替え。横並び4つは1ステップ約1.7"しかなく崩壊する。
+
+### 矢印の方向
+横並び→横矢印、縦並び→縦矢印。方向が不一致は禁止。
+
+---
 
 ## 重要な制約
 
-- 横並びプロセスフローは3ステップまで。4つ以上は縦リストに切り替え
-- カラー比率: 背景60%、テキスト30%、アクセント10%
-- ホワイトスペース: スライド面積の30-50%
-- 1スライド1キーメッセージ
-- 画像の縦横比は絶対に変えない
+- **HTML出力禁止**: 必ずPPTXファイルを生成する
+- **画像は必ず入れる**: テキストだけのプレゼンは禁止。対象企業の実物写真を使う
+- **画像の縦横比は絶対に変えない**
+- **提案資料は20枚以上**: 導入(2) + 分析(6-8) + 施策(8-10) + 効果(4) + クロージング(1)
+- **1スライド1キーメッセージ**
+- **ホワイトスペース**: スライド面積の30-50%
+- **バージョン管理**: _v1.pptx → _v2.pptx。上書き禁止
+
+---
+
+## ワークフロー
+
+### 新規作成
+1. PptxGenJS（Node.js）でスライドを生成（詳細は pptx://pptxgenjs リソース参照）
+2. 上記のSlideKitデザインシステムに従う
+3. pptx_thumbnail でサムネイル生成 → テキスト溢れ・切れをチェック → 問題あれば修正→再チェックをループ
+
+### 既存PPTX編集
+1. pptx_thumbnail で既存スライドを確認
+2. pptx_inventory でテキスト内容を抽出
+3. pptx_unpack → XMLを直接編集 → pptx_clean → pptx_pack
+
+### 詳細ガイド（リソース）
+より詳細なルールが必要な場合はリソースを参照:
+- pptx://design-rules — 全体ルール・QA手順
+- pptx://slidekit — OOXML座標・レイアウトパターン詳細
+- pptx://pptxgenjs — PptxGenJS APIリファレンス
+- pptx://rules — 破損防止チェックリスト
+- pptx://editing-workflow — unpack→edit→packの詳細手順
+
+---
+
+## PPTX破損防止（必須）
+
+1. presentation.xmlのスライドサイズを変更しない
+2. [Content_Types].xmlに重複エントリを作らない
+3. presentation.xml.relsのrIdは連番維持
+4. sldIdLstとrelsのslide参照を一致させる
+5. 全slideN.xml.relsが存在するか確認
+6. リパック前にバリデーション実行
+7. XMLエスケープ必須: & → &amp; < → &lt; > → &gt;
+8. <p:sp>内でprstGeom="line"を使わない（薄い矩形で代替）
+9. 不要ファイル(.bak, .tmp, .DS_Store)をzipに含めない
+
+---
+
+## PptxGenJS注意事項
+
+- HEXカラーに"#"を付けない: "FF0000"が正解、"#FF0000"は破損
+- 8桁HEXカラー禁止（"00000020"等）→ opacity プロパティを使う
+- bullet: true を使う。Unicode "•" は二重弾丸になる
+- breakLine: true でテキスト配列を改行
+- オプションオブジェクトを複数呼び出しで再利用しない（内部で変更される）
+- rounding: true は使わない（PowerPointエラーの原因）
+- colWの合計はwと完全一致させる
 `;
 
 const server = new McpServer(
