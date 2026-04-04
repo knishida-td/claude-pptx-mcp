@@ -4,8 +4,8 @@
 
 set -euo pipefail
 
+REPO_RAW="https://raw.githubusercontent.com/knishida-td/claude-pptx-mcp/main"
 SETTINGS_FILE="$HOME/.claude/settings.json"
-MCP_ENTRY='"pptx":{"command":"npx","args":["-y","github:knishida-td/claude-pptx-mcp"]}'
 
 echo "🔧 claude-pptx-mcp をインストールします..."
 
@@ -66,50 +66,51 @@ else
   echo "  CLAUDE.md にPPTX生成ルールは設定済みです"
 fi
 
+# ── ヘルパー: ローカルファイルを探し、なければGitHubからダウンロード ──
+install_script() {
+  local name="$1"       # e.g. "validate-slidekit.sh"
+  local repo_path="$2"  # e.g. "scripts/validate-slidekit.sh"
+  local dest="$3"       # e.g. "$HOME/.claude/scripts/validate-slidekit.sh"
+
+  mkdir -p "$(dirname "$dest")"
+
+  # ローカルにあれば使う（git cloneやローカル実行時）
+  local local_path=""
+  local script_dir=""
+  script_dir="$(cd "$(dirname "$0")" 2>/dev/null && pwd)" || true
+  if [ -n "$script_dir" ] && [ -f "$script_dir/$repo_path" ]; then
+    local_path="$script_dir/$repo_path"
+  fi
+
+  if [ -n "$local_path" ]; then
+    cp "$local_path" "$dest"
+  else
+    # curl | bash の場合: GitHubから直接ダウンロード
+    if curl -fsSL "$REPO_RAW/$repo_path" -o "$dest" 2>/dev/null; then
+      true
+    else
+      echo "  ⚠ $name のダウンロードに失敗しました（手動で配置してください）"
+      return 1
+    fi
+  fi
+
+  chmod +x "$dest"
+  echo "  $name をインストールしました"
+}
+
 # validate-slidekit.sh をインストール
-VALIDATE_SRC=""
-for candidate in \
-  "$(cd "$(dirname "$0")" 2>/dev/null && pwd)/scripts/validate-slidekit.sh" \
-  "$(npm root -g 2>/dev/null)/claude-pptx-mcp/scripts/validate-slidekit.sh"; do
-  if [ -f "$candidate" 2>/dev/null ]; then
-    VALIDATE_SRC="$candidate"
-    break
-  fi
-done
+install_script "validate-slidekit.sh" \
+  "scripts/validate-slidekit.sh" \
+  "$HOME/.claude/scripts/validate-slidekit.sh"
 
-if [ -n "$VALIDATE_SRC" ] && [ -f "$VALIDATE_SRC" ]; then
-  mkdir -p "$HOME/.claude/scripts"
-  cp "$VALIDATE_SRC" "$HOME/.claude/scripts/validate-slidekit.sh"
-  chmod +x "$HOME/.claude/scripts/validate-slidekit.sh"
-  echo "  validate-slidekit.sh をインストールしました"
-fi
+# post-bash-pptx-qa.sh をインストール
+install_script "post-bash-pptx-qa.sh" \
+  "scripts/post-bash-pptx-qa.sh" \
+  "$HOME/.claude/scripts/hooks/post-bash-pptx-qa.sh"
 
-# PostToolUse hook を登録（PPTX生成後のQAリマインダー）
+# hooks.json に PostToolUse hook を登録（既に登録済みならスキップ）
 HOOKS_FILE="$HOME/.claude/hooks/hooks.json"
-HOOK_SCRIPT_DIR="$HOME/.claude/scripts/hooks"
-HOOK_SCRIPT="post-bash-pptx-qa.sh"
 
-# install.sh が curl | bash で実行された場合、HOOK_SRC は取得できないので
-# npx 経由でインストールされたパスから探す
-HOOK_SRC=""
-for candidate in \
-  "$(cd "$(dirname "$0")" 2>/dev/null && pwd)/scripts/$HOOK_SCRIPT" \
-  "$(npm root -g 2>/dev/null)/claude-pptx-mcp/scripts/$HOOK_SCRIPT"; do
-  if [ -f "$candidate" 2>/dev/null ]; then
-    HOOK_SRC="$candidate"
-    break
-  fi
-done
-
-# hookスクリプトをコピー
-mkdir -p "$HOOK_SCRIPT_DIR"
-if [ -n "$HOOK_SRC" ] && [ -f "$HOOK_SRC" ]; then
-  cp "$HOOK_SRC" "$HOOK_SCRIPT_DIR/$HOOK_SCRIPT"
-  chmod +x "$HOOK_SCRIPT_DIR/$HOOK_SCRIPT"
-  echo "  QAリマインダーhookをインストールしました"
-fi
-
-# hooks.json に登録（既に登録済みならスキップ）
 if [ -f "$HOOKS_FILE" ] && grep -q "post-bash-pptx-qa" "$HOOKS_FILE" 2>/dev/null; then
   echo "  hooks.json にQA hookは設定済みです"
 else
