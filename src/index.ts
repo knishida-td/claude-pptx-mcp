@@ -4,7 +4,8 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { execFile, execFileSync } from "node:child_process";
 import { existsSync } from "node:fs";
-import { readFile } from "node:fs/promises";
+import { readFile, writeFile, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
@@ -61,6 +62,21 @@ async function runPython(
   });
 }
 
+async function runNode(
+  script: string,
+  args: string[]
+): Promise<{ stdout: string; stderr: string }> {
+  const scriptPath = join(SCRIPTS_DIR, script);
+  return execFileAsync("node", [scriptPath, ...args], {
+    cwd: process.cwd(),
+    maxBuffer: 50 * 1024 * 1024,
+    env: {
+      ...process.env,
+      NODE_PATH: join(PROJECT_ROOT, "node_modules"),
+    },
+  });
+}
+
 async function readResource(filename: string): Promise<string> {
   return readFile(join(RESOURCES_DIR, filename), "utf-8");
 }
@@ -96,174 +112,78 @@ function withDesignRules(output: string): string {
 
 const INSTRUCTIONS = `# PPTX資料作成MCPサーバー
 
-このサーバーはPowerPoint資料の作成・編集を行うツールとルールを提供します。
-**以下のデザインルールに必ず従うこと。リソースを読まなくてもこのINSTRUCTIONSだけで正しいスライドを作れる。**
+## 最重要ルール
+
+**新規スライド作成は必ず pptx_generate ツールを使うこと。**
+PptxGenJSコードを自分で書くな。デザインはサーバーが制御する。
+
+pptx_generate はJSON形式のスライド定義を受け取り、SlideKitデザインシステムに準拠したPPTXを自動生成する。
+色・フォント・座標・レイアウトはすべてサーバー側でハードコードされており、変更不可。
 
 ## いつ使うか
 
-ユーザーが「資料作って」「スライド作って」「プレゼン作って」「提案書作って」「deck作って」と言ったら、
-またはPPTXファイルに言及したら、このサーバーのツールを使って作業してください。
+「資料作って」「スライド作って」「プレゼン作って」「提案書作って」「deck作って」→ pptx_generate を使う。
 **HTML出力は禁止。必ずPPTXファイルを生成すること。**
 
----
+## pptx_generate の使い方
 
-## SlideKitデザインシステム（必須）
-
-### カラーパレット（60-30-10ルール）
-| 役割 | HEX | 用途 |
-|---|---|---|
-| 背景(60%) | F5F5F5 | 全スライド統一 |
-| テキスト(30%) | 333333 | 本文 |
-| タイトル | 222222 | スライドタイトル |
-| 補足 | 666666 | 副テキスト |
-| ミュート | AAAAAA | ページ番号 |
-| アクセント(10%) | EF4823 | 見出し・KeyMsg・アクセントバー |
-| セカンダリ | FCBF17 | YellowLine |
-| KeyMsg背景 | FFF5F0 | KeyMsgBar背景 |
-| セパレーター | EEEEEE | 細い区切り線 |
-| デバイダー | DDDDDD | 太い縦区切り線 |
-
-### フォント
-全テキスト統一: Hiragino Kaku Gothic Pro W3
-
-| 要素 | サイズ(pt) | bold | 色 |
-|---|---|---|---|
-| スライドタイトル | 22 | Yes | 222222 |
-| ヒーローテキスト | 28-40 | Yes | EF4823 |
-| セクション見出し | 16 | Yes | EF4823 |
-| 本文 | 14 | No | 333333 |
-| キーメッセージ | 18 | Yes | EF4823 |
-| ページ番号 | 9 | No | AAAAAA |
-| 副テキスト | 12 | No | 666666 |
-
-### 共通コンポーネント（固定座標）
-スライドサイズ: 10"×5.625"（16:9）
-
-| 要素 | x(inch) | y(inch) | w | h | 備考 |
-|---|---|---|---|---|---|
-| Title | 0.5 | 0.39 | 9.0 | 0.45 | 22pt bold, 中央揃え |
-| RedLine | 0.5 | 0.857 | 4.25 | 0.035 | fill=EF4823 |
-| YellowLine | 4.75 | 0.857 | 4.75 | 0.035 | fill=FCBF17 |
-| KeyMsgBg | 0.5 | 4.837 | 9.0 | 0.4 | roundRect, fill=FFF5F0 |
-| KeyMsgText | 0.5 | 4.837 | 9.0 | 0.4 | 18pt bold, EF4823, 中央揃え, **28全角文字以内** |
-| PageNum | 9.2 | 5.337 | 0.5 | 0.25 | 9pt, AAAAAA, 右揃え |
-
-**本体コンテンツ領域**: y=0.893〜4.837 (高さ3.944")
-
-### PptxGenJSヘルパーテンプレート
-\`\`\`javascript
-const C = { bg:"F5F5F5", title:"222222", body:"333333", sub:"666666", muted:"AAAAAA",
-  primary:"EF4823", secondary:"FCBF17", kmBg:"FFF5F0", sep:"EEEEEE", divider:"DDDDDD", white:"FFFFFF" };
-const FONT = "Hiragino Kaku Gothic Pro W3";
-const SW = 10, SH = 5.625;
-const HDR = { titleX:0.5, titleY:0.39, titleW:9.0, titleH:0.45,
-  redLineX:0.5, redLineY:0.857, redLineW:4.25, redLineH:0.035,
-  yellowLineX:4.75, yellowLineY:0.857, yellowLineW:4.75, yellowLineH:0.035 };
-const KM = { x:0.5, y:4.837, w:9.0, h:0.4 };
-const PN = { x:9.2, y:5.337, w:0.5, h:0.25 };
-const BODY_TOP = 0.893, BODY_BOT = 4.837, BODY_H = BODY_BOT - BODY_TOP;
-function centerY(contentH) { return BODY_TOP + (BODY_H - contentH) / 2; }
+### JSON構造
+\`\`\`json
+{
+  "meta": { "title": "提案書タイトル", "author": "作成者", "client": "クライアント名" },
+  "slides": [
+    { "type": "title", "title": "メインタイトル", "subtitle": "サブタイトル", "date": "2026年4月", "author": "blends inc." },
+    { "type": "agenda", "title": "目次", "content": { "items": ["現状分析", "施策提案", "実行計画"] } },
+    { "type": "section", "number": "01", "title": "現状分析" },
+    { "type": "content", "title": "スライドタイトル", "layout": "レイアウト名", "content": { ... }, "keyMessage": "28文字以内のメッセージ" },
+    { "type": "cta", "title": "次のステップ", "items": [{ "label": "ラベル", "detail": "詳細" }] }
+  ]
+}
 \`\`\`
 
----
+### 利用可能なレイアウト（type: "content" 用）
+| layout | 用途 | content構造 |
+|---|---|---|
+| bigtext | インパクト数値・主張 | { heading: "9,800億円", subtext: "補足説明" } |
+| two-column | 左右比較 | { left: { title, items: [] }, right: { title, items: [] } } |
+| three-column | 3つの並列項目 | { columns: [{ title, items: [] }, ...] } |
+| numbered-list | 番号付き手順・要点 | { items: [{ title, description }, ...] } |
+| definition | 定義・解説 | { items: [{ title, description }, ...] } |
+| before-after | 変化の表現 | { before: { title, items: [] }, after: { title, items: [] } } |
+| grid-2x2 | 2×2マトリクス | { cells: [{ title, description }, ...] } |
+| process-flow | 工程表示（3ステップまで） | { steps: [{ title, description }, ...] } |
+| vertical-steps | 4ステップ以上の工程 | { items: [{ title, description }, ...] } |
+| kpi | KPI/数値ハイライト | { metrics: [{ value, label, sub }, ...] } |
+| table | 表形式データ | { headers: [], rows: [[...], ...] } |
+| ab-choice | A/B選択提示 | { optionA: { title, subtitle, description }, optionB: { ... } } |
+| bullets | シンプル箇条書き | { items: ["項目1", "項目2", ...] } |
+| timeline | スケジュール | { phases: [{ label, title, width: 0.0-1.0 }, ...] } |
 
-## レイアウトルール
-
-### 縦中央配置（全スライド必須・例外なし）
-- **コンテンツスライド**: ヘッダー下端(0.893")〜KeyMsg上端(4.837")の領域で本体を縦中央
-  - 計算: ideal_top = 0.893 + (3.944 - contentH) / 2
-- **セクション/タイトルスライド**: スライド全体(5.625")で縦中央
-  - 計算: ideal_top = (5.625 - contentH) / 2
-- **CTA/エンドスライド**: 縦中央 AND 左右中央。固定値のx/y決め打ち禁止
-
-### テキストボックスのサイズ
-- 幅はテキスト量に合わせる（広すぎると右に空白ができる）
-- 高さ(cy)は実際のテキスト量に合わせる。巨大な空きボックス禁止
-- 日本語16ptで1行≈25-28文字、14ptで1行≈41文字(w=8")
-
-### 要素間スペーシング
-- グループ内: 0.15"
-- グループ間: 0.3"
-- セクション間: 0.6"
-- gap=0は禁止
-
-### マージン
-- 外側マージン: 0.5"（全辺統一）
-- コンテンツ領域: x=0.5〜9.5, y=0.5〜5.125
-
----
-
-## レイアウトパターン
-
-### コンテンツスライド(Type C)
-大見出し+補足 / 左右2カラム / 3カラムグリッド / 番号付きリスト / 定義ブロック / Before→After / 2×2グリッド / 因果フロー / プロセスフロー(3ステップまで) / 番号付き縦リスト(4ステップ以上) / A/B選択肢
-
-### 横並びプロセスフローは3ステップが上限
-4ステップ以上 → 番号付き縦リストに切り替え。横並び4つは1ステップ約1.7"しかなく崩壊する。
-
-### 矢印の方向
-横並び→横矢印、縦並び→縦矢印。方向が不一致は禁止。
-
----
-
-## 重要な制約
-
-- **HTML出力禁止**: 必ずPPTXファイルを生成する
-- **画像は必ず入れる**: テキストだけのプレゼンは禁止。対象企業の実物写真を使う
-- **画像の縦横比は絶対に変えない**
-- **提案資料は20枚以上**: 導入(2) + 分析(6-8) + 施策(8-10) + 効果(4) + クロージング(1)
-- **1スライド1キーメッセージ**
-- **KeyMsgは28全角文字以内**: KeyMsgBarの幅(9.0")に18pt boldで1行に収まる上限。超えたら短縮する
-- **ホワイトスペース**: スライド面積の30-50%
-- **バージョン管理**: _v1.pptx → _v2.pptx。上書き禁止
-
----
+### 提案資料の構成（20枚以上必須）
+1. title（1枚）
+2. agenda（1枚）
+3. section + content × N（現状分析: 6-8枚）
+4. section + content × N（施策提案: 8-10枚）
+5. section + content × N（効果・実行計画: 4枚）
+6. cta（1枚）
 
 ## ワークフロー
 
 ### 新規作成
-1. PptxGenJS（Node.js）でスライドを生成（詳細は pptx://pptxgenjs リソース参照）
-2. 上記のSlideKitデザインシステムに従う
-3. pptx_thumbnail でサムネイル生成 → テキスト溢れ・切れをチェック → 問題あれば修正→再チェックをループ
+1. pptx_generate でPPTXを生成
+2. pptx_thumbnail でサムネイル生成 → テキスト溢れ・切れをチェック
+3. 問題あれば JSON を修正して再生成 → 再チェックをループ
 
 ### 既存PPTX編集
 1. pptx_thumbnail で既存スライドを確認
 2. pptx_inventory でテキスト内容を抽出
-3. pptx_unpack → XMLを直接編集 → pptx_clean → pptx_pack
+3. pptx_replace_text で一括置換、または pptx_unpack → XML編集 → pptx_pack
 
-### 詳細ガイド（リソース）
-より詳細なルールが必要な場合はリソースを参照:
-- pptx://design-rules — 全体ルール・QA手順
-- pptx://slidekit — OOXML座標・レイアウトパターン詳細
-- pptx://pptxgenjs — PptxGenJS APIリファレンス
-- pptx://rules — 破損防止チェックリスト
-- pptx://editing-workflow — unpack→edit→packの詳細手順
-
----
-
-## PPTX破損防止（必須）
-
-1. presentation.xmlのスライドサイズを変更しない
-2. [Content_Types].xmlに重複エントリを作らない
-3. presentation.xml.relsのrIdは連番維持
-4. sldIdLstとrelsのslide参照を一致させる
-5. 全slideN.xml.relsが存在するか確認
-6. リパック前にバリデーション実行
-7. XMLエスケープ必須: & → &amp; < → &lt; > → &gt;
-8. <p:sp>内でprstGeom="line"を使わない（薄い矩形で代替）
-9. 不要ファイル(.bak, .tmp, .DS_Store)をzipに含めない
-
----
-
-## PptxGenJS注意事項
-
-- HEXカラーに"#"を付けない: "FF0000"が正解、"#FF0000"は破損
-- 8桁HEXカラー禁止（"00000020"等）→ opacity プロパティを使う
-- bullet: true を使う。Unicode "•" は二重弾丸になる
-- breakLine: true でテキスト配列を改行
-- オプションオブジェクトを複数呼び出しで再利用しない（内部で変更される）
-- rounding: true は使わない（PowerPointエラーの原因）
-- colWの合計はwと完全一致させる
+### 重要な制約
+- **バージョン管理**: _v1.pptx → _v2.pptx。上書き禁止
+- **KeyMsgは28全角文字以内**
+- **横並びプロセスフローは3ステップまで**（4つ以上 → vertical-steps）
+- **画像の縦横比は絶対に変えない**
 `;
 
 const server = new McpServer(
@@ -279,6 +199,39 @@ const server = new McpServer(
 // ---------------------------------------------------------------------------
 // Tools
 // ---------------------------------------------------------------------------
+
+server.tool(
+  "pptx_generate",
+  "構造化JSONからSlideKitデザイン準拠のPPTXを自動生成する。新規スライド作成では必ずこのツールを使うこと。",
+  {
+    slides_json: z
+      .string()
+      .describe(
+        "スライド定義JSON文字列。構造: { meta: { title, author, client }, slides: [{ type, title, layout, content, keyMessage }, ...] }"
+      ),
+    output_pptx: z.string().describe("出力PPTXファイルのパス（例: /tmp/proposal_v1.pptx）"),
+  },
+  async ({ slides_json, output_pptx }) => {
+    // Write JSON to temp file
+    const tmpJson = join(tmpdir(), `slidekit-${Date.now()}.json`);
+    await writeFile(tmpJson, slides_json, "utf-8");
+    try {
+      const { stdout, stderr } = await runNode("generate.cjs", [tmpJson, output_pptx]);
+      const output = stdout || stderr || "完了";
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: withDesignRules(output),
+          },
+        ],
+      };
+    } finally {
+      // Clean up temp file
+      try { await unlink(tmpJson); } catch { /* ignore */ }
+    }
+  }
+);
 
 server.tool(
   "pptx_inventory",

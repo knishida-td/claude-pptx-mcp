@@ -52,19 +52,45 @@ with open(path, 'w') as f:
   echo "  MCPサーバーを登録しました"
 fi
 
-# CLAUDE.md にPPTX生成ルールを追記
+# ── CLAUDE.md にPPTX生成ルールを追記（常に最新版に更新）──
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
-PPTX_RULE='「資料作って」等のスライド作成依頼では、必ずPptxGenJS（Node.js）でPPTXファイルを生成すること。HTML出力禁止。pptx MCPサーバーのツールを使うこと。'
+PPTX_MARKER="<!-- pptx-mcp-rules -->"
 
-if [ ! -f "$CLAUDE_MD" ]; then
-  echo "$PPTX_RULE" > "$CLAUDE_MD"
-  echo "  CLAUDE.md を新規作成しました"
-elif ! grep -q "PptxGenJS" "$CLAUDE_MD" 2>/dev/null; then
-  printf '\n%s\n' "$PPTX_RULE" >> "$CLAUDE_MD"
-  echo "  CLAUDE.md にPPTX生成ルールを追記しました"
-else
-  echo "  CLAUDE.md にPPTX生成ルールは設定済みです"
+# 既存のpptx-mcp-rulesブロックを削除してから最新を追記
+if [ -f "$CLAUDE_MD" ]; then
+  # マーカー間のブロックを削除
+  python3 -c "
+import re
+with open('$CLAUDE_MD') as f:
+    content = f.read()
+# Remove old one-liner rule too
+content = re.sub(r'.*PptxGenJS.*PPTX.*HTML出力禁止.*pptx MCP.*\n?', '', content)
+# Remove marker blocks
+content = re.sub(r'$PPTX_MARKER.*?$PPTX_MARKER\n?', '', content, flags=re.DOTALL)
+content = content.rstrip() + '\n'
+with open('$CLAUDE_MD', 'w') as f:
+    f.write(content)
+" 2>/dev/null || true
 fi
+
+# 最新ルールを追記
+cat >> "$CLAUDE_MD" << 'PPTX_RULES_EOF'
+
+<!-- pptx-mcp-rules -->
+## PPTX資料作成ルール
+
+**新規スライド作成は必ず pptx MCPサーバーの pptx_generate ツールを使う。**
+自分でPptxGenJSコードを書くな。デザインはサーバーが制御する。HTML出力禁止。
+
+- pptx_generate にJSON（slides配列）を渡すだけ。色・フォント・座標はサーバーが固定
+- 提案資料は20枚以上: title(1) + agenda(1) + section+content(分析6-8, 施策8-10, 効果4) + cta(1)
+- KeyMsgは28全角文字以内
+- 生成後は pptx_thumbnail で全スライドチェック → 問題ゼロまでループ
+- バージョン管理: _v1.pptx → _v2.pptx。上書き禁止
+<!-- pptx-mcp-rules -->
+PPTX_RULES_EOF
+
+echo "  CLAUDE.md にPPTX生成ルールを更新しました"
 
 # ── ヘルパー: ローカルファイルを探し、なければGitHubからダウンロード ──
 install_script() {
@@ -108,22 +134,19 @@ install_script "post-bash-pptx-qa.sh" \
   "scripts/post-bash-pptx-qa.sh" \
   "$HOME/.claude/scripts/hooks/post-bash-pptx-qa.sh"
 
-# hooks.json に PostToolUse hook を登録（既に登録済みならスキップ）
-HOOKS_FILE="$HOME/.claude/hooks/hooks.json"
-
-if [ -f "$HOOKS_FILE" ] && grep -q "post-bash-pptx-qa" "$HOOKS_FILE" 2>/dev/null; then
-  echo "  hooks.json にQA hookは設定済みです"
-else
-  python3 -c "
+# ── hooks設定（PostToolUse QA + PreToolUse バリデーション）──
+# settings.json に hooks を登録
+python3 -c "
 import json, os
-path = '$HOOKS_FILE'
-if os.path.exists(path):
-    with open(path) as f:
-        data = json.load(f)
-else:
-    data = {'hooks': {}}
 
-post = data.setdefault('hooks', {}).setdefault('PostToolUse', [])
+path = '$SETTINGS_FILE'
+with open(path) as f:
+    data = json.load(f)
+
+hooks = data.setdefault('hooks', {})
+
+# PostToolUse: PPTX生成後のQAリマインダー
+post = hooks.setdefault('PostToolUse', [])
 if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
     post.append({
         'matcher': 'Bash',
@@ -131,13 +154,20 @@ if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
         'description': 'PPTX生成検出時にQAリマインダーを表示'
     })
 
-os.makedirs(os.path.dirname(path), exist_ok=True)
+# PreToolUse: node実行前にvalidate-slidekit.shを強制
+pre = hooks.setdefault('PreToolUse', [])
+if not any('validate-slidekit' in json.dumps(h) for h in pre):
+    pre.append({
+        'matcher': 'Bash',
+        'hooks': [{'type': 'command', 'command': 'bash -c \"cmd=\\\"\$TOOL_INPUT\\\"; if echo \\\"\$cmd\\\" | grep -qE \\\"node.*\\\\.js\\\" && echo \\\"\$cmd\\\" | grep -qiE \\\"pptx|slide|presentation\\\"; then jsfile=\$(echo \\\"\$cmd\\\" | grep -oE \\\"/[^ ]*\\\\.js\\\"); if [ -n \\\"\$jsfile\\\" ] && [ -f \\\"\$jsfile\\\" ]; then ~/.claude/scripts/validate-slidekit.sh \\\"\$jsfile\\\"; fi; fi\"'}],
+        'description': 'PptxGenJSスクリプト実行前にSlideKitルール違反を検出'
+    })
+
 with open(path, 'w') as f:
     json.dump(data, f, indent=2, ensure_ascii=False)
     f.write('\n')
-"
-  echo "  hooks.json にQA hookを登録しました"
-fi
+" 2>/dev/null && echo "  hooks を設定しました" || echo "  ⚠ hooks設定に失敗（手動設定が必要な場合があります）"
 
 echo "✅ インストール完了！Claude Codeを再起動してください。"
 echo "   資料作成は「資料作って」と話しかけるだけでOKです。"
+echo "   デザインはサーバーが自動制御します。"
