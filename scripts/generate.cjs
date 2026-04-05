@@ -48,15 +48,19 @@ function clamp(value, min, max) {
 
 function truncateKeyMsg(text) {
   if (!text) return "";
-  // 28全角文字以内
+  // 27全角文字以内（"…"の分を1文字確保）
+  const limit = 27;
   let count = 0;
   let result = "";
   for (const ch of text) {
-    count += (ch.charCodeAt(0) > 127) ? 1 : 0.5;
-    if (count > 28) break;
+    const w = (ch.charCodeAt(0) > 127) ? 1 : 0.5;
+    if (count + w > limit && count > 0) {
+      return result + "…";
+    }
+    count += w;
     result += ch;
   }
-  return count > 28 ? result + "…" : text;
+  return text;
 }
 
 // ─── 共通パーツ追加 ─────────────────────────────────────────────
@@ -1105,7 +1109,7 @@ function layoutCta(pres, data, pageNum) {
   const lineH = 0.035;
   const gap = 0.2;
   const itemH = 0.45;
-  const items = data.items || [];
+  const items = data.items || (data.content && data.content.items) || [];
   const totalH = titleH + gap + lineH + gap + items.length * (itemH + gap);
   const baseY = fullCenterY(totalH);
 
