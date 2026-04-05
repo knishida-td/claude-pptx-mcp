@@ -144,7 +144,7 @@ function layoutTitle(pres, data) {
   slide.addText(data.title || "", {
     x: leftX, y, w: textW, h: titleH,
     fontFace: FONT, fontSize: 32, bold: true, color: C.title,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
   y += titleH + gap;
 
@@ -164,7 +164,7 @@ function layoutTitle(pres, data) {
   slide.addText(data.subtitle || "", {
     x: leftX, y, w: textW, h: subtitleH,
     fontFace: FONT, fontSize: 16, color: C.sub,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
   y += subtitleH + gap;
 
@@ -172,7 +172,7 @@ function layoutTitle(pres, data) {
   slide.addText(data.date || "", {
     x: leftX, y, w: textW, h: metaH,
     fontFace: FONT, fontSize: 12, color: C.muted,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
   y += metaH + metaGap;
 
@@ -180,7 +180,7 @@ function layoutTitle(pres, data) {
   slide.addText(data.author || "", {
     x: leftX, y, w: textW, h: metaH,
     fontFace: FONT, fontSize: 12, color: C.muted,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
 }
 
@@ -203,7 +203,7 @@ function layoutSection(pres, data, pageNum) {
     slide.addText(data.number, {
       x: MARGIN, y, w: CONTENT_W, h: numH,
       fontFace: FONT, fontSize: 40, bold: true, color: C.primary,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
     y += numH + gap;
 
@@ -220,7 +220,7 @@ function layoutSection(pres, data, pageNum) {
   slide.addText(data.title || "", {
     x: MARGIN, y, w: CONTENT_W, h: titleH,
     fontFace: FONT, fontSize: 28, bold: true, color: C.title,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
 
   addPageNum(slide, pageNum);
@@ -256,7 +256,7 @@ function layoutBigtext(pres, data, pageNum) {
   slide.addText(c.heading || "", {
     x: MARGIN, y, w: CONTENT_W, h: headingH,
     fontFace: FONT, fontSize: 40, bold: true, color: C.primary,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
   y += headingH + gap;
 
@@ -266,7 +266,7 @@ function layoutBigtext(pres, data, pageNum) {
   slide.addText(c.subtext || "", {
     x: MARGIN, y, w: CONTENT_W, h: subH,
     fontFace: FONT, fontSize: 14, color: C.sub,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
 
   addKeyMsg(slide, data.keyMessage);
@@ -286,8 +286,8 @@ function layoutTwoColumn(pres, data, pageNum) {
   const rightX = divX + 0.2 + 0.15;
 
   const headerH = 0.35;
-  const itemH = 0.28;
-  const gap = 0.1;
+  const itemH = 0.45;
+  const gap = 0.08;
 
   // Calculate content height
   const leftItems = left.items || [];
@@ -302,13 +302,13 @@ function layoutTwoColumn(pres, data, pageNum) {
   slide.addText(left.title || "", {
     x: MARGIN, y, w: colW, h: headerH,
     fontFace: FONT, fontSize: 16, bold: true, color: C.primary,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
   // Right header
   slide.addText(right.title || "", {
     x: rightX, y, w: colW, h: headerH,
     fontFace: FONT, fontSize: 16, bold: true, color: C.primary,
-    valign: "middle",
+    valign: "middle", autoFit: true,
   });
   y += headerH + gap;
 
@@ -320,14 +320,14 @@ function layoutTwoColumn(pres, data, pageNum) {
     if (leftItems[i]) {
       slide.addText(leftItems[i], {
         x: MARGIN, y, w: colW, h: itemH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle",
+        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
     }
     if (rightItems[i]) {
       slide.addText(rightItems[i], {
         x: rightX, y, w: colW, h: itemH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle",
+        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
     }
@@ -366,7 +366,7 @@ function layoutThreeColumn(pres, data, pageNum) {
     slide.addText(col.title || "", {
       x, y, w: colW, h: headerH,
       fontFace: FONT, fontSize: 16, bold: true, color: C.primary,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
     y += headerH + gap;
 
@@ -374,7 +374,7 @@ function layoutThreeColumn(pres, data, pageNum) {
     for (const item of (col.items || [])) {
       slide.addText(item, {
         x, y, w: colW, h: bodyH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle",
+        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
       y += bodyH + gap;
@@ -399,12 +399,21 @@ function layoutNumberedList(pres, data, pageNum) {
   const items = c.items || [];
   const circleSize = 0.35;
   const titleH = 0.3;
-  const descH = 0.25;
-  const gap = 0.15;
-  const itemGap = 0.1;
+  const gap = 0.12;
+  const itemGap = 0.08;
   const sepH = 0.015;
 
-  const itemBlockH = Math.max(circleSize, titleH + (descH > 0 ? itemGap + descH : 0));
+  // descHをアイテム数に応じて動的調整（BODY_Hに収まるように）
+  const hasDesc = items.some(i => i.description);
+  const maxDescH = 0.45;
+  const minDescH = 0.25;
+  const rawBlockH = titleH + (hasDesc ? itemGap + maxDescH : 0);
+  const rawTotalH = items.length * Math.max(circleSize, rawBlockH) + (items.length - 1) * (gap + sepH + gap);
+  const descH = rawTotalH > BODY_H * 0.92
+    ? Math.max(minDescH, maxDescH - (rawTotalH - BODY_H * 0.92) / items.length)
+    : maxDescH;
+
+  const itemBlockH = Math.max(circleSize, titleH + (hasDesc ? itemGap + descH : 0));
   const totalH = items.length * itemBlockH + (items.length - 1) * (gap + sepH + gap);
   const baseY = centerY(totalH);
 
@@ -424,14 +433,14 @@ function layoutNumberedList(pres, data, pageNum) {
       x: circleX, y: y + (itemBlockH - circleSize) / 2,
       w: circleSize, h: circleSize,
       fontFace: FONT, fontSize: 14, bold: true, color: C.white,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
 
     // Title
     slide.addText(item.title || "", {
       x: textX, y, w: textW, h: titleH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
 
     // Description
@@ -439,7 +448,7 @@ function layoutNumberedList(pres, data, pageNum) {
       slide.addText(item.description, {
         x: textX, y: y + titleH + itemGap, w: textW, h: descH,
         fontFace: FONT, fontSize: 12, color: C.sub,
-        valign: "top",
+        valign: "top", autoFit: true,
       });
     }
 
@@ -466,8 +475,8 @@ function layoutDefinition(pres, data, pageNum) {
   const items = c.items || [];
   const barW = 0.04;
   const barGap = 0.15;
-  const headingH = 0.3;
-  const bodyH = 0.25;
+  const headingH = 0.45;
+  const bodyH = 0.35;
   const gap = 0.1;
   const sepH = 0.015;
   const blockGap = 0.2;
@@ -491,14 +500,14 @@ function layoutDefinition(pres, data, pageNum) {
     slide.addText(item.title || "", {
       x: textX, y, w: textW, h: headingH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
 
     // Body
     slide.addText(item.description || "", {
       x: textX, y: y + headingH + gap, w: textW, h: bodyH,
       fontFace: FONT, fontSize: 12, color: C.sub,
-      valign: "top",
+      valign: "top", autoFit: true,
     });
 
     y += itemBlockH;
@@ -529,12 +538,18 @@ function layoutBeforeAfter(pres, data, pageNum) {
   const rightX = MARGIN + colW + arrowW;
 
   const labelH = 0.35;
-  const itemH = 0.28;
-  const gap = 0.1;
+  const gap = 0.08;
 
   const beforeItems = before.items || [];
   const afterItems = after.items || [];
   const maxItems = Math.max(beforeItems.length, afterItems.length);
+
+  // itemHをアイテム数に応じて動的調整
+  const maxItemH = 0.42;
+  const rawH = labelH + gap + maxItems * (maxItemH + gap);
+  const itemH = rawH > BODY_H * 0.92
+    ? Math.max(0.28, maxItemH - (rawH - BODY_H * 0.92) / maxItems)
+    : maxItemH;
   const totalH = labelH + gap + maxItems * (itemH + gap);
   const baseY = centerY(totalH);
 
@@ -548,7 +563,7 @@ function layoutBeforeAfter(pres, data, pageNum) {
   slide.addText(before.title || "Before", {
     x: leftX, y, w: colW, h: labelH,
     fontFace: FONT, fontSize: 16, bold: true, color: C.body,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
 
   slide.addShape("roundRect", {
@@ -558,7 +573,7 @@ function layoutBeforeAfter(pres, data, pageNum) {
   slide.addText(after.title || "After", {
     x: rightX, y, w: colW, h: labelH,
     fontFace: FONT, fontSize: 16, bold: true, color: C.primary,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
 
   // Arrow (horizontal)
@@ -566,7 +581,7 @@ function layoutBeforeAfter(pres, data, pageNum) {
   slide.addText("→", {
     x: arrowX, y: arrowY, w: 0.6, h: 0.35,
     fontFace: FONT, fontSize: 28, bold: true, color: C.primary,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
 
   y += labelH + gap;
@@ -576,14 +591,14 @@ function layoutBeforeAfter(pres, data, pageNum) {
     if (beforeItems[i]) {
       slide.addText(beforeItems[i], {
         x: leftX + 0.15, y, w: colW - 0.3, h: itemH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle",
+        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
     }
     if (afterItems[i]) {
       slide.addText(afterItems[i], {
         x: rightX + 0.15, y, w: colW - 0.3, h: itemH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle",
+        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
     }
@@ -624,13 +639,13 @@ function layoutGrid2x2(pres, data, pageNum) {
     slide.addText(cell.title || "", {
       x: pos.x, y: pos.y, w: cellW, h: titleH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.primary,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
 
     slide.addText(cell.description || "", {
       x: pos.x, y: pos.y + titleH + 0.1, w: cellW, h: bodyH,
       fontFace: FONT, fontSize: 12, color: C.body,
-      valign: "top",
+      valign: "top", autoFit: true,
     });
   });
 
@@ -678,7 +693,7 @@ function layoutProcessFlow(pres, data, pageNum) {
     slide.addText(String(i + 1), {
       x: cx, y, w: circleSize, h: circleSize,
       fontFace: FONT, fontSize: 16, bold: true, color: C.white,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
     y += circleSize + gap;
 
@@ -686,7 +701,7 @@ function layoutProcessFlow(pres, data, pageNum) {
     slide.addText(step.title || "", {
       x, y, w: stepW, h: titleH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
     y += titleH + gap;
 
@@ -694,7 +709,7 @@ function layoutProcessFlow(pres, data, pageNum) {
     slide.addText(step.description || "", {
       x, y, w: stepW, h: descH,
       fontFace: FONT, fontSize: 12, color: C.sub,
-      align: "center", valign: "top",
+      align: "center", valign: "top", autoFit: true,
     });
 
     // Arrow between steps
@@ -703,7 +718,7 @@ function layoutProcessFlow(pres, data, pageNum) {
         x: x + stepW, y: baseY + circleSize / 2 - 0.15,
         w: arrowW, h: 0.35,
         fontFace: FONT, fontSize: 24, bold: true, color: C.primary,
-        align: "center", valign: "middle",
+        align: "center", valign: "middle", autoFit: true,
       });
     }
   });
@@ -734,21 +749,27 @@ function layoutKpi(pres, data, pageNum) {
   const totalH = numberH + gap + labelH + gap + subH;
   const baseY = centerY(totalH);
 
+  // 最長のvalue文字列に合わせてフォントサイズを動的調整
+  const maxValueLen = Math.max(...metrics.slice(0, 4).map(m => (m.value || "").length));
+  // 36ptで1文字≈0.36"。metricWに収まるサイズを計算
+  const maxFitSize = Math.floor(metricW / (maxValueLen * 0.36) * 36);
+  const numberSize = Math.min(36, Math.max(24, maxFitSize));
+
   metrics.slice(0, 4).forEach((m, i) => {
     const x = MARGIN + i * metricW;
 
     // Big number
     slide.addText(m.value || "", {
       x, y: baseY, w: metricW, h: numberH,
-      fontFace: FONT, fontSize: 36, bold: true, color: C.primary,
-      align: "center", valign: "middle",
+      fontFace: FONT, fontSize: numberSize, bold: true, color: C.primary,
+      align: "center", valign: "middle", autoFit: true,
     });
 
     // Label
     slide.addText(m.label || "", {
       x, y: baseY + numberH + gap, w: metricW, h: labelH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
 
     // Sub label
@@ -756,7 +777,7 @@ function layoutKpi(pres, data, pageNum) {
       slide.addText(m.sub, {
         x, y: baseY + numberH + gap + labelH + gap, w: metricW, h: subH,
         fontFace: FONT, fontSize: 11, color: C.sub,
-        align: "center", valign: "middle",
+        align: "center", valign: "middle", autoFit: true,
       });
     }
 
@@ -779,19 +800,41 @@ function layoutTable(pres, data, pageNum) {
   const headers = c.headers || [];
   const rows = c.rows || [];
 
+  // 各列の最大文字数を計算して列幅を比例配分
+  const colCount = headers.length;
+  const allRows = [headers, ...rows];
+  const maxLens = Array(colCount).fill(0);
+  for (const row of allRows) {
+    for (let i = 0; i < colCount; i++) {
+      if (row[i]) {
+        // 全角=1, 半角=0.5 で幅を推定
+        let w = 0;
+        for (const ch of row[i]) w += ch.charCodeAt(0) > 127 ? 1 : 0.6;
+        maxLens[i] = Math.max(maxLens[i], w);
+      }
+    }
+  }
+  const totalLen = maxLens.reduce((a, b) => a + b, 0) || 1;
+  const minColW = 0.8;
+  const colWidths = maxLens.map(l => Math.max(minColW, (l / totalLen) * CONTENT_W));
+  // 合計をCONTENT_Wに正規化
+  const sumW = colWidths.reduce((a, b) => a + b, 0);
+  const normalizedColW = colWidths.map(w => (w / sumW) * CONTENT_W);
+
+  const fontSize = 11;
   const tableRows = [
     headers.map(h => ({
       text: h, options: {
-        fontFace: FONT, fontSize: 12, bold: true, color: C.white,
-        fill: { color: C.primary }, align: "center", valign: "middle",
+        fontFace: FONT, fontSize, bold: true, color: C.white,
+        fill: { color: C.primary }, align: "center", valign: "middle", autoFit: true,
       },
     })),
     ...rows.map((row, ri) =>
       row.map(cell => ({
         text: cell, options: {
-          fontFace: FONT, fontSize: 12, color: C.body,
+          fontFace: FONT, fontSize, color: C.body,
           fill: { color: ri % 2 === 0 ? C.white : C.bg },
-          valign: "middle",
+          valign: "middle", autoFit: true,
         },
       }))
     ),
@@ -800,11 +843,10 @@ function layoutTable(pres, data, pageNum) {
   const rowH = 0.35;
   const totalTableH = tableRows.length * rowH;
   const tableY = centerY(totalTableH);
-  const colW = headers.length > 0 ? CONTENT_W / headers.length : CONTENT_W;
 
   slide.addTable(tableRows, {
     x: MARGIN, y: tableY, w: CONTENT_W,
-    colW: Array(headers.length).fill(colW),
+    colW: normalizedColW,
     rowH,
     border: { type: "solid", pt: 0.5, color: C.sep },
   });
@@ -847,12 +889,12 @@ function layoutAbChoice(pres, data, pageNum) {
     slide.addText(label, {
       x, y, w: 0.45, h: labelH,
       fontFace: FONT, fontSize: 18, bold: true, color: C.white,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
     slide.addText(opt.title || "", {
       x: x + 0.55, y, w: colW - 0.55, h: labelH,
       fontFace: FONT, fontSize: 16, bold: true, color: C.body,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
     y += labelH + gap;
 
@@ -860,7 +902,7 @@ function layoutAbChoice(pres, data, pageNum) {
     slide.addText(opt.subtitle || "", {
       x, y, w: colW, h: subtitleH,
       fontFace: FONT, fontSize: 12, color: C.sub,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
     y += subtitleH + gap;
 
@@ -868,7 +910,7 @@ function layoutAbChoice(pres, data, pageNum) {
     slide.addText(opt.description || "", {
       x, y, w: colW, h: bodyH,
       fontFace: FONT, fontSize: 14, color: C.body,
-      valign: "top",
+      valign: "top", autoFit: true,
     });
   });
 
@@ -895,7 +937,7 @@ function layoutBullets(pres, data, pageNum) {
     slide.addText(item, {
       x: MARGIN, y, w: CONTENT_W, h: itemH,
       fontFace: FONT, fontSize: 14, color: C.body,
-      valign: "middle", bullet: true,
+      valign: "middle", autoFit: true, bullet: true,
     });
     y += itemH + gap;
   });
@@ -930,7 +972,7 @@ function layoutTimeline(pres, data, pageNum) {
     slide.addText(phase.label || "", {
       x: barX, y, w: barW, h: labelH,
       fontFace: FONT, fontSize: 12, bold: true, color: C.body,
-      valign: "bottom",
+      valign: "bottom", autoFit: true,
     });
 
     // Bar（全幅、角丸）
@@ -947,7 +989,7 @@ function layoutTimeline(pres, data, pageNum) {
       x: barX + 0.2, y: y + labelH + 0.05,
       w: barW - 0.4, h: barH,
       fontFace: FONT, fontSize: 12, color: barTextColor,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
   });
 
@@ -963,13 +1005,13 @@ function layoutCta(pres, data, pageNum) {
   const titleH = 0.5;
   const lineH = 0.035;
   const gap = 0.2;
-  const itemH = 0.35;
+  const itemH = 0.45;
   const items = data.items || [];
   const totalH = titleH + gap + lineH + gap + items.length * (itemH + gap);
   const baseY = fullCenterY(totalH);
 
   // Calculate block width for horizontal centering
-  const blockW = 6;
+  const blockW = 8;
   const baseX = (SW - blockW) / 2;
 
   let y = baseY;
@@ -977,7 +1019,7 @@ function layoutCta(pres, data, pageNum) {
   slide.addText(data.title || "Thank you", {
     x: baseX, y, w: blockW, h: titleH,
     fontFace: FONT, fontSize: 28, bold: true, color: C.title,
-    align: "center", valign: "middle",
+    align: "center", valign: "middle", autoFit: true,
   });
   y += titleH + gap;
 
@@ -1043,14 +1085,14 @@ function layoutAgenda(pres, data, pageNum) {
       x: MARGIN + 0.5, y: y + (itemH - circleSize) / 2,
       w: circleSize, h: circleSize,
       fontFace: FONT, fontSize: 11, bold: true, color: C.white,
-      align: "center", valign: "middle",
+      align: "center", valign: "middle", autoFit: true,
     });
 
     // Title
     slide.addText(item, {
       x: MARGIN + 0.5 + numW + 0.15, y, w: CONTENT_W - numW - 0.5 - 0.15, h: itemH,
       fontFace: FONT, fontSize, color: C.body,
-      valign: "middle",
+      valign: "middle", autoFit: true,
     });
 
     if (i < items.length - 1) {
