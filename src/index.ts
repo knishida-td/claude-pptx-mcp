@@ -135,11 +135,31 @@ pptx_generate はJSON形式のスライド定義を受け取り、SlideKitデザ
     { "type": "title", "title": "メインタイトル", "subtitle": "サブタイトル", "date": "2026年4月", "author": "blends inc." },
     { "type": "agenda", "title": "目次", "content": { "items": ["現状分析", "施策提案", "実行計画"] } },
     { "type": "section", "number": "01", "title": "現状分析" },
-    { "type": "content", "title": "スライドタイトル", "layout": "レイアウト名", "content": { ... }, "keyMessage": "28文字以内のメッセージ" },
+    {
+      "type": "content",
+      "title": "スライドタイトル",
+      "layout": "レイアウト名",
+      "content": {
+        "...": "...",
+        "images": [
+          {
+            "path": "/abs/path/to/screenshot.png",
+            "x": 5.6,
+            "y": 1.4,
+            "w": 3.2,
+            "h": 2.4,
+            "altText": "製品スクリーンショット"
+          }
+        ]
+      },
+      "keyMessage": "28文字以内のメッセージ"
+    },
     { "type": "cta", "title": "次のステップ", "items": [{ "label": "ラベル", "detail": "詳細" }] }
   ]
 }
 \`\`\`
+
+\`images\` は \`slide.images\` または \`content.images\` に指定できる。各画像は \`{ path, x, y, w, h, altText? }\` 形式で渡し、生成側で縦横比を維持して配置する。
 
 ### 利用可能なレイアウト（type: "content" 用）
 | layout | 用途 | content構造 |
@@ -207,13 +227,13 @@ server.tool(
     slides_json: z
       .string()
       .describe(
-        "スライド定義JSON文字列。構造: { meta: { title, author, client }, slides: [{ type, title, layout, content, keyMessage }, ...] }"
+        "スライド定義JSON文字列。構造: { meta: { title, author, client }, slides: [{ type, title, layout, content, keyMessage, images? }, ...] }。画像は slide.images または content.images に [{ path, x, y, w, h, altText? }] 形式で指定可能"
       ),
     output_pptx: z.string().describe("出力PPTXファイルのパス（例: /tmp/proposal_v1.pptx）"),
   },
   async ({ slides_json, output_pptx }) => {
     // Write JSON to temp file
-    const tmpJson = join(tmpdir(), `slidekit-${Date.now()}.json`);
+    const tmpJson = join(tmpdir(), `slidekit-${Date.now()}-${Math.random().toString(36).slice(2,8)}.json`);
     await writeFile(tmpJson, slides_json, "utf-8");
     try {
       const { stdout, stderr } = await runNode("generate.cjs", [tmpJson, output_pptx]);

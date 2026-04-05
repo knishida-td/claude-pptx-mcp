@@ -154,7 +154,7 @@ hooks = data.setdefault('hooks', {})
 post = hooks.setdefault('PostToolUse', [])
 if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
     post.append({
-        'matcher': 'Bash',
+        'matcher': 'mcp__.*__pptx_generate',
         'hooks': [{'type': 'command', 'command': 'bash ~/.claude/scripts/hooks/post-bash-pptx-qa.sh'}],
         'description': 'PPTX生成検出時にQAリマインダーを表示'
     })

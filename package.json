@@ -16,11 +16,13 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
-    "prepare": "tsc"
+    "prepare": "tsc",
+    "test": "node tests/review-fixes.test.cjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.12.1",
     "@types/node": "^22.0.0",
+    "image-size": "^2.0.2",
     "pptxgenjs": "^4.0.1",
     "sharp": "^0.34.5",
     "typescript": "^5.7.0"

@@ -8,6 +8,7 @@
 const pptxgen = require("pptxgenjs");
 const fs = require("fs");
 const path = require("path");
+const { imageSize } = require("image-size");
 
 // ─── デザイン定数（変更禁止） ───────────────────────────────────
 const C = {
@@ -39,6 +40,10 @@ function centerY(contentH) {
 
 function fullCenterY(contentH) {
   return (SH - contentH) / 2;
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function truncateKeyMsg(text) {
@@ -116,6 +121,82 @@ function addDivider(slide, x, y, h) {
   });
 }
 
+function fitContainBox(srcW, srcH, boxW, boxH) {
+  if (!srcW || !srcH || !boxW || !boxH) {
+    return { w: boxW, h: boxH };
+  }
+  const scale = Math.min(boxW / srcW, boxH / srcH);
+  return {
+    w: srcW * scale,
+    h: srcH * scale,
+  };
+}
+
+function getImageBlocks(data) {
+  if (Array.isArray(data.images)) return data.images;
+  const content = data.content || {};
+  if (Array.isArray(content.images)) return content.images;
+  return [];
+}
+
+function addImages(slide, data) {
+  const images = getImageBlocks(data);
+  for (const image of images) {
+    if (!image || !image.path) {
+      throw new Error("Image item requires a path");
+    }
+    if (!fs.existsSync(image.path)) {
+      throw new Error(`Image file not found: ${image.path}`);
+    }
+
+    const boxX = Number(image.x ?? MARGIN);
+    const boxY = Number(image.y ?? BODY_TOP);
+    const boxW = Number(image.w ?? image.maxW ?? 3.2);
+    const boxH = Number(image.h ?? image.maxH ?? 2.4);
+    const align = image.align || "center";
+    const valign = image.valign || "middle";
+    const imgBuf = fs.readFileSync(image.path);
+    const size = imageSize(imgBuf);
+    const fitted = fitContainBox(size.width, size.height, boxW, boxH);
+
+    let x = boxX;
+    let y = boxY;
+    if (align === "center") x += (boxW - fitted.w) / 2;
+    else if (align === "right") x += boxW - fitted.w;
+    if (valign === "middle") y += (boxH - fitted.h) / 2;
+    else if (valign === "bottom") y += boxH - fitted.h;
+
+    slide.addImage({
+      path: image.path,
+      x,
+      y,
+      w: fitted.w,
+      h: fitted.h,
+      altText: image.altText || image.caption || "",
+      hyperlink: image.href ? { url: image.href } : undefined,
+    });
+  }
+}
+
+function normalizeContentSlide(data) {
+  if (data.layout !== "process-flow") return data;
+  const content = data.content || {};
+  const steps = Array.isArray(content.steps) ? content.steps : [];
+  if (steps.length <= 3) return data;
+
+  return {
+    ...data,
+    layout: "vertical-steps",
+    content: {
+      ...content,
+      items: steps.map((step) => ({
+        title: step.title || "",
+        description: step.description || "",
+      })),
+    },
+  };
+}
+
 // ============================================================================
 // レイアウトエンジン
 // ============================================================================
@@ -182,6 +263,7 @@ function layoutTitle(pres, data) {
     fontFace: FONT, fontSize: 12, color: C.muted,
     valign: "middle", autoFit: true,
   });
+  return slide;
 }
 
 // ─── Type B: セクション扉 ───────────────────────────────────────
@@ -224,18 +306,19 @@ function layoutSection(pres, data, pageNum) {
   });
 
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // ─── Type C: コンテンツスライド ─────────────────────────────────
 function layoutContent(pres, data, pageNum) {
-  const layout = data.layout || "numbered-list";
+  const normalized = normalizeContentSlide(data);
+  const layout = normalized.layout || "numbered-list";
   const layoutFn = LAYOUT_MAP[layout];
   if (!layoutFn) {
     console.error(`Unknown layout: ${layout}, falling back to numbered-list`);
-    layoutNumberedList(pres, data, pageNum);
-    return;
+    return layoutNumberedList(pres, normalized, pageNum);
   }
-  layoutFn(pres, data, pageNum);
+  return layoutFn(pres, normalized, pageNum);
 }
 
 // --- bigtext: 大見出し + 補足 ---
@@ -271,6 +354,7 @@ function layoutBigtext(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- two-column: 左右2カラム ---
@@ -336,6 +420,7 @@ function layoutTwoColumn(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- three-column: 3カラムグリッド ---
@@ -388,6 +473,7 @@ function layoutThreeColumn(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- numbered-list: 番号付きリスト ---
@@ -464,6 +550,7 @@ function layoutNumberedList(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- definition: 定義ブロック ---
@@ -521,6 +608,7 @@ function layoutDefinition(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- before-after: Before→After ---
@@ -607,6 +695,7 @@ function layoutBeforeAfter(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- grid-2x2: 2×2グリッド ---
@@ -657,6 +746,7 @@ function layoutGrid2x2(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- process-flow: プロセスフロー（3ステップまで） ---
@@ -725,12 +815,13 @@ function layoutProcessFlow(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- vertical-steps: 番号付き縦リスト（4ステップ以上用） ---
 // numbered-listと同じ実装を使う
 function layoutVerticalSteps(pres, data, pageNum) {
-  layoutNumberedList(pres, data, pageNum);
+  return layoutNumberedList(pres, data, pageNum);
 }
 
 // --- kpi: KPI/数値ハイライト ---
@@ -789,6 +880,7 @@ function layoutKpi(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- table: テーブル ---
@@ -853,6 +945,7 @@ function layoutTable(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- ab-choice: A/B選択肢 ---
@@ -918,6 +1011,7 @@ function layoutAbChoice(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- bullets: シンプル箇条書き ---
@@ -944,6 +1038,7 @@ function layoutBullets(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // --- timeline: スケジュール/タイムライン ---
@@ -963,14 +1058,17 @@ function layoutTimeline(pres, data, pageNum) {
   const totalH = count * phaseBlockH + (count - 1) * gap;
   const baseY = centerY(totalH);
   const barX = MARGIN;
-  const barW = CONTENT_W; // 全幅使う
+  const maxBarW = CONTENT_W;
 
   phases.forEach((phase, i) => {
     const y = baseY + i * (phaseBlockH + gap);
+    const phaseWidth = Number(phase.width);
+    const normalizedWidth = Number.isFinite(phaseWidth) ? phaseWidth : 1;
+    const barW = maxBarW * clamp(normalizedWidth, 0, 1);
 
     // Phase label（バーの上に表示）
     slide.addText(phase.label || "", {
-      x: barX, y, w: barW, h: labelH,
+      x: barX, y, w: maxBarW, h: labelH,
       fontFace: FONT, fontSize: 12, bold: true, color: C.body,
       valign: "bottom", autoFit: true,
     });
@@ -987,7 +1085,7 @@ function layoutTimeline(pres, data, pageNum) {
     // Bar text（バー内、左寄せ）
     slide.addText(phase.title || "", {
       x: barX + 0.2, y: y + labelH + 0.05,
-      w: barW - 0.4, h: barH,
+      w: Math.max(barW - 0.4, 0), h: barH,
       fontFace: FONT, fontSize: 12, color: barTextColor,
       valign: "middle", autoFit: true,
     });
@@ -995,6 +1093,7 @@ function layoutTimeline(pres, data, pageNum) {
 
   addKeyMsg(slide, data.keyMessage);
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // ─── Type D: CTA / エンドスライド ───────────────────────────────
@@ -1042,6 +1141,7 @@ function layoutCta(pres, data, pageNum) {
   });
 
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // ─── agenda: 目次スライド ───────────────────────────────────────
@@ -1064,8 +1164,11 @@ function layoutAgenda(pres, data, pageNum) {
   // gap を動的調整: コンテンツが領域の (1 - minMargin*2/AGENDA_H) を超えないように
   const maxContentH = AGENDA_H - minMargin * 2;
   const maxGap = 0.15;
+  const rawGap = items.length > 1
+    ? (maxContentH - items.length * itemH) / (items.length - 1)
+    : maxGap;
   const gap = items.length > 1
-    ? Math.min(maxGap, (maxContentH - items.length * itemH) / (items.length - 1))
+    ? clamp(rawGap, 0, maxGap)
     : maxGap;
 
   const totalH = items.length * (itemH + gap) - gap;
@@ -1101,6 +1204,7 @@ function layoutAgenda(pres, data, pageNum) {
   });
 
   addPageNum(slide, pageNum);
+  return slide;
 }
 
 // ─── レイアウトマップ ───────────────────────────────────────────
@@ -1139,25 +1243,27 @@ function generate(inputJson, outputPath) {
 
   for (const s of slides) {
     pageNum++;
+    let slide;
     switch (s.type) {
       case "title":
-        layoutTitle(pres, s);
+        slide = layoutTitle(pres, s);
         break;
       case "section":
-        layoutSection(pres, s, pageNum);
+        slide = layoutSection(pres, s, pageNum);
         break;
       case "agenda":
-        layoutAgenda(pres, s, pageNum);
+        slide = layoutAgenda(pres, s, pageNum);
         break;
       case "cta":
       case "end":
-        layoutCta(pres, s, pageNum);
+        slide = layoutCta(pres, s, pageNum);
         break;
       case "content":
       default:
-        layoutContent(pres, s, pageNum);
+        slide = layoutContent(pres, s, pageNum);
         break;
     }
+    if (slide) addImages(slide, s);
   }
 
   return pres.writeFile({ fileName: outputPath }).then(() => {
