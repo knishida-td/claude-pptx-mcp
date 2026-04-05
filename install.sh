@@ -134,14 +134,19 @@ install_script "post-bash-pptx-qa.sh" \
   "scripts/post-bash-pptx-qa.sh" \
   "$HOME/.claude/scripts/hooks/post-bash-pptx-qa.sh"
 
-# ── hooks設定（PostToolUse QA + PreToolUse バリデーション）──
-# settings.json に hooks を登録
+# ── hooks設定（~/.claude/hooks/hooks.json に登録）──
+HOOKS_FILE="$HOME/.claude/hooks/hooks.json"
+mkdir -p "$(dirname "$HOOKS_FILE")"
+
 python3 -c "
 import json, os
 
-path = '$SETTINGS_FILE'
-with open(path) as f:
-    data = json.load(f)
+path = '$HOOKS_FILE'
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+else:
+    data = {}
 
 hooks = data.setdefault('hooks', {})
 
@@ -152,15 +157,6 @@ if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
         'matcher': 'Bash',
         'hooks': [{'type': 'command', 'command': 'bash ~/.claude/scripts/hooks/post-bash-pptx-qa.sh'}],
         'description': 'PPTX生成検出時にQAリマインダーを表示'
-    })
-
-# PreToolUse: node実行前にvalidate-slidekit.shを強制
-pre = hooks.setdefault('PreToolUse', [])
-if not any('validate-slidekit' in json.dumps(h) for h in pre):
-    pre.append({
-        'matcher': 'Bash',
-        'hooks': [{'type': 'command', 'command': 'bash -c \"cmd=\\\"\$TOOL_INPUT\\\"; if echo \\\"\$cmd\\\" | grep -qE \\\"node.*\\\\.js\\\" && echo \\\"\$cmd\\\" | grep -qiE \\\"pptx|slide|presentation\\\"; then jsfile=\$(echo \\\"\$cmd\\\" | grep -oE \\\"/[^ ]*\\\\.js\\\"); if [ -n \\\"\$jsfile\\\" ] && [ -f \\\"\$jsfile\\\" ]; then ~/.claude/scripts/validate-slidekit.sh \\\"\$jsfile\\\"; fi; fi\"'}],
-        'description': 'PptxGenJSスクリプト実行前にSlideKitルール違反を検出'
     })
 
 with open(path, 'w') as f:
