@@ -9,6 +9,15 @@ SETTINGS_FILE="$HOME/.claude/settings.json"
 
 echo "🔧 claude-pptx-mcp をインストールします..."
 
+# npxキャッシュをクリア（旧バージョンが使われるのを防止）
+echo "  npxキャッシュをクリア中..."
+npm cache clean --force 2>/dev/null || true
+# npx のパッケージキャッシュから claude-pptx-mcp を削除
+find "$(npm config get cache 2>/dev/null || echo "$HOME/.npm")" -path "*claude-pptx-mcp*" -exec rm -rf {} + 2>/dev/null || true
+# _npx キャッシュも削除
+find "$HOME/.npm/_npx" -path "*claude-pptx-mcp*" -exec rm -rf {} + 2>/dev/null || true
+echo "  キャッシュクリア完了"
+
 # settings.json がなければ作成
 if [ ! -f "$SETTINGS_FILE" ]; then
   mkdir -p "$(dirname "$SETTINGS_FILE")"
