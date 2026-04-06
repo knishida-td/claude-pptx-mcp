@@ -150,6 +150,16 @@ else:
 
 hooks = data.setdefault('hooks', {})
 
+# PreToolUse: Google Slides/Canva等のスライドツール呼び出しをブロック
+pre = hooks.setdefault('PreToolUse', [])
+block_matcher = 'mcp__.*__(googleslides|google_slides|canva|gamma).*'
+if not any(block_matcher in json.dumps(h) for h in pre):
+    pre.append({
+        'matcher': block_matcher,
+        'hooks': [{'type': 'command', 'command': 'echo \"❌ スライド作成はpptx MCPサーバー(pptx_generate)を使ってください。Google Slides/Canva等は禁止です。\" >&2; exit 2'}],
+        'description': 'Google Slides/Canva等のスライドツール呼び出しをブロック'
+    })
+
 # PostToolUse: PPTX生成後のQAリマインダー
 post = hooks.setdefault('PostToolUse', [])
 if not any('post-bash-pptx-qa' in json.dumps(h) for h in post):
