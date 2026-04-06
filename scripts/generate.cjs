@@ -63,6 +63,16 @@ function truncateKeyMsg(text) {
   return text;
 }
 
+// 全角/半角を区別してテキストの表示幅（インチ）を推定
+function estimateTextWidth(text, fontSize) {
+  if (!text) return 0;
+  let units = 0;
+  for (const ch of text) {
+    units += (ch.charCodeAt(0) > 127) ? 1.0 : 0.55;
+  }
+  return units * fontSize / 72;
+}
+
 // ─── 共通パーツ追加 ─────────────────────────────────────────────
 function addBg(slide) {
   slide.background = { color: C.bg };
@@ -438,11 +448,20 @@ function layoutThreeColumn(pres, data, pageNum) {
   const colGap = 0.45;
 
   const headerH = 0.35;
-  const bodyH = 0.25;
   const gap = 0.1;
 
-  // Find max items
+  // Find max items and determine if text needs smaller font
   const maxItems = Math.max(...columns.map(col => (col.items || []).length), 0);
+  // 列幅に対して最長テキストが収まるかチェック（14ptで1行の目安）
+  let bodyFontSize = 14;
+  const allItemTexts = columns.flatMap(col => (col.items || []));
+  const maxItemWidth = Math.max(0, ...allItemTexts.map(t => estimateTextWidth(t, 14)));
+  if (maxItemWidth > colW - 0.3) {
+    // テキストが列幅を超える場合はフォント縮小
+    bodyFontSize = Math.max(10, Math.floor(14 * (colW - 0.3) / maxItemWidth));
+  }
+  // bodyHも2行折り返しに対応（フォント縮小しても超える場合）
+  const bodyH = maxItemWidth > (colW - 0.3) * 1.5 ? 0.45 : 0.25;
   const totalH = headerH + gap + maxItems * (bodyH + gap);
   const baseY = centerY(totalH);
 
@@ -463,7 +482,7 @@ function layoutThreeColumn(pres, data, pageNum) {
     for (const item of (col.items || [])) {
       slide.addText(item, {
         x, y, w: colW, h: bodyH,
-        fontFace: FONT, fontSize: 14, color: C.body, valign: "middle", autoFit: true,
+        fontFace: FONT, fontSize: bodyFontSize, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
       });
       y += bodyH + gap;
@@ -493,17 +512,33 @@ function layoutNumberedList(pres, data, pageNum) {
   const itemGap = 0.08;
   const sepH = 0.015;
 
-  // descHをアイテム数に応じて動的調整（BODY_Hに収まるように）
+  // descHをアイテム数に応じて動的調整（BODY_Hに確実に収まるように）
   const hasDesc = items.some(i => i.description);
   const maxDescH = 0.45;
-  const minDescH = 0.25;
+  const minDescH = 0.2;
   const rawBlockH = titleH + (hasDesc ? itemGap + maxDescH : 0);
   const rawTotalH = items.length * Math.max(circleSize, rawBlockH) + (items.length - 1) * (gap + sepH + gap);
-  const descH = rawTotalH > BODY_H * 0.92
-    ? Math.max(minDescH, maxDescH - (rawTotalH - BODY_H * 0.92) / items.length)
-    : maxDescH;
+  // BODY_Hの88%以内に収める（KeyMsgとの被り防止マージン確保）
+  const safeH = BODY_H * 0.88;
+  let descH;
+  if (rawTotalH > safeH) {
+    // まずdescHを縮小して収めることを試みる
+    const excess = rawTotalH - safeH;
+    descH = Math.max(minDescH, maxDescH - excess / items.length);
+    // それでも収まらない場合はdescriptionを非表示にする
+    const shrunkBlockH = titleH + (hasDesc ? itemGap + descH : 0);
+    const shrunkTotal = items.length * Math.max(circleSize, shrunkBlockH) + (items.length - 1) * (gap + sepH + gap);
+    if (shrunkTotal > safeH && items.length >= 5) {
+      // 5項目以上でdescription付きは収まらないのでdesc非表示
+      items.forEach(item => { item._hideDesc = true; });
+      descH = 0;
+    }
+  } else {
+    descH = maxDescH;
+  }
 
-  const itemBlockH = Math.max(circleSize, titleH + (hasDesc ? itemGap + descH : 0));
+  const showDesc = hasDesc && !items.some(i => i._hideDesc);
+  const itemBlockH = Math.max(circleSize, titleH + (showDesc ? itemGap + descH : 0));
   const totalH = items.length * itemBlockH + (items.length - 1) * (gap + sepH + gap);
   const baseY = centerY(totalH);
 
@@ -534,7 +569,7 @@ function layoutNumberedList(pres, data, pageNum) {
     });
 
     // Description
-    if (item.description) {
+    if (item.description && !item._hideDesc) {
       slide.addText(item.description, {
         x: textX, y: y + titleH + itemGap, w: textW, h: descH,
         fontFace: FONT, fontSize: 12, color: C.sub,
@@ -844,11 +879,14 @@ function layoutKpi(pres, data, pageNum) {
   const totalH = numberH + gap + labelH + gap + subH;
   const baseY = centerY(totalH);
 
-  // 最長のvalue文字列に合わせてフォントサイズを動的調整
-  const maxValueLen = Math.max(...metrics.slice(0, 4).map(m => (m.value || "").length));
-  // 36ptで1文字≈0.36"。metricWに収まるサイズを計算
-  const maxFitSize = Math.floor(metricW / (maxValueLen * 0.36) * 36);
-  const numberSize = Math.min(36, Math.max(24, maxFitSize));
+  // 最長のvalue文字列に合わせてフォントサイズを動的調整（全角/半角対応）
+  const maxValueWidth = Math.max(
+    ...metrics.slice(0, 4).map(m => estimateTextWidth(m.value || "", 36))
+  );
+  // metricWに余裕(0.2")を持たせて収まるサイズを計算
+  const numberSize = maxValueWidth > 0
+    ? Math.min(36, Math.max(20, Math.floor(36 * (metricW - 0.2) / maxValueWidth)))
+    : 36;
 
   metrics.slice(0, 4).forEach((m, i) => {
     const x = MARGIN + i * metricW;
