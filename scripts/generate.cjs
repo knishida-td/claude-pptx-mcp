@@ -64,11 +64,12 @@ function truncateKeyMsg(text) {
 }
 
 // 全角/半角を区別してテキストの表示幅（インチ）を推定
+// PowerPointの実レンダリングに近い保守的な値を使用
 function estimateTextWidth(text, fontSize) {
   if (!text) return 0;
   let units = 0;
   for (const ch of text) {
-    units += (ch.charCodeAt(0) > 127) ? 1.0 : 0.55;
+    units += (ch.charCodeAt(0) > 127) ? 1.2 : 0.65;
   }
   return units * fontSize / 72;
 }
@@ -883,9 +884,10 @@ function layoutKpi(pres, data, pageNum) {
   const maxValueWidth = Math.max(
     ...metrics.slice(0, 4).map(m => estimateTextWidth(m.value || "", 36))
   );
-  // metricWに余裕(0.2")を持たせて収まるサイズを計算
+  // metricWにパディング(0.4")を確保して収まるサイズを計算
+  const availableW = metricW - 0.4;
   const numberSize = maxValueWidth > 0
-    ? Math.min(36, Math.max(20, Math.floor(36 * (metricW - 0.2) / maxValueWidth)))
+    ? Math.min(36, Math.max(18, Math.floor(36 * availableW / maxValueWidth)))
     : 36;
 
   metrics.slice(0, 4).forEach((m, i) => {
