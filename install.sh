@@ -5,7 +5,6 @@
 set -euo pipefail
 
 REPO_RAW="https://raw.githubusercontent.com/knishida-td/claude-pptx-mcp/main"
-SETTINGS_FILE="$HOME/.claude/settings.json"
 
 echo "🔧 claude-pptx-mcp をインストールします..."
 
@@ -18,48 +17,28 @@ find "$(npm config get cache 2>/dev/null || echo "$HOME/.npm")" -path "*claude-p
 find "$HOME/.npm/_npx" -path "*claude-pptx-mcp*" -exec rm -rf {} + 2>/dev/null || true
 echo "  キャッシュクリア完了"
 
-# settings.json がなければ作成
-if [ ! -f "$SETTINGS_FILE" ]; then
-  mkdir -p "$(dirname "$SETTINGS_FILE")"
-  echo '{}' > "$SETTINGS_FILE"
-  echo "  settings.json を新規作成しました"
+# ~/.claude ディレクトリを確保
+mkdir -p "$HOME/.claude"
+
+# MCPサーバー登録（claude mcp add を使用 — 確実に永続化される）
+# Node.js チェック
+if ! command -v node &>/dev/null; then
+  echo "❌ Node.js が見つかりません。先にインストールしてください:"
+  echo "   https://nodejs.org/"
+  exit 1
 fi
 
-# MCPサーバー登録（未登録の場合のみ）
-if grep -q "claude-pptx-mcp" "$SETTINGS_FILE" 2>/dev/null; then
-  echo "  MCPサーバーは登録済みです"
-else
-  # Node.js チェック
-  if ! command -v node &>/dev/null; then
-    echo "❌ Node.js が見つかりません。先にインストールしてください:"
-    echo "   https://nodejs.org/"
-    exit 1
-  fi
-
-  # jq があれば使う、なければ Python で編集
-  if command -v jq &>/dev/null; then
-    tmp=$(mktemp)
-    jq --argjson pptx "{\"command\":\"npx\",\"args\":[\"-y\",\"github:knishida-td/claude-pptx-mcp\"]}" \
-      '.mcpServers = (.mcpServers // {}) | .mcpServers.pptx = $pptx' \
-      "$SETTINGS_FILE" > "$tmp" && mv "$tmp" "$SETTINGS_FILE"
-  else
-    python3 -c "
-import json, sys
-path = '$SETTINGS_FILE'
-with open(path) as f:
-    data = json.load(f)
-data.setdefault('mcpServers', {})
-data['mcpServers']['pptx'] = {
-    'command': 'npx',
-    'args': ['-y', 'github:knishida-td/claude-pptx-mcp']
-}
-with open(path, 'w') as f:
-    json.dump(data, f, indent=2, ensure_ascii=False)
-    f.write('\n')
-"
-  fi
-  echo "  MCPサーバーを登録しました"
+# claude CLI チェック
+if ! command -v claude &>/dev/null; then
+  echo "❌ Claude Code CLI が見つかりません。先にインストールしてください:"
+  echo "   npm install -g @anthropic-ai/claude-code"
+  exit 1
 fi
+
+# 既存登録を削除してから最新版で再登録（冪等性を保証）
+claude mcp remove --scope user pptx 2>/dev/null || true
+claude mcp add --scope user pptx -- npx -y "github:knishida-td/claude-pptx-mcp"
+echo "  MCPサーバーを登録しました（claude mcp add --scope user）"
 
 # ── CLAUDE.md にPPTX生成ルールを追記（常に最新版に更新）──
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
