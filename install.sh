@@ -4,6 +4,13 @@
 
 set -euo pipefail
 
+# curl | bash は非対話シェルで .zshrc/.bashrc を読まないため、
+# nvm/nodebrew/Homebrew 等で入れた node や claude にPATHが通らない。
+# ユーザーのプロファイルを明示的にロードする。
+for f in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
+  [ -f "$f" ] && source "$f" 2>/dev/null || true
+done
+
 REPO_RAW="https://raw.githubusercontent.com/knishida-td/claude-pptx-mcp/main"
 
 echo "🔧 claude-pptx-mcp をインストールします..."
@@ -37,8 +44,12 @@ fi
 
 # 既存登録を削除してから最新版で再登録（冪等性を保証）
 claude mcp remove --scope user pptx 2>/dev/null || true
-claude mcp add --scope user pptx -- npx -y "github:knishida-td/claude-pptx-mcp"
-echo "  MCPサーバーを登録しました（claude mcp add --scope user）"
+if claude mcp add --scope user pptx -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1; then
+  echo "  MCPサーバーを登録しました（claude mcp add --scope user）"
+else
+  echo "❌ MCP登録に失敗しました。Claude Codeに一度ログインしてから再実行してください。"
+  exit 1
+fi
 
 # ── CLAUDE.md にPPTX生成ルールを追記（常に最新版に更新）──
 CLAUDE_MD="$HOME/.claude/CLAUDE.md"
