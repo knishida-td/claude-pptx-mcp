@@ -479,16 +479,32 @@ function layoutThreeColumn(pres, data, pageNum) {
 
   // Find max items and determine if text needs smaller font
   const maxItems = Math.max(...columns.map(col => (col.items || []).length), 0);
-  // 列幅に対して最長テキストが収まるかチェック（14ptで1行の目安）
+  // 列幅に対して最長テキストが収まるかチェック
+  // bullet(・)はindent分(約0.25")を消費するため、テキスト幅が狭くなる
+  const bulletIndent = 0.25;
   let bodyFontSize = 14;
-  const allItemTexts = columns.flatMap(col => (col.items || []));
-  const maxItemWidth = Math.max(0, ...allItemTexts.map(t => estimateTextWidth(t, 14)));
-  if (maxItemWidth > colW - 0.3) {
-    // テキストが列幅を超える場合はフォント縮小
-    bodyFontSize = Math.max(10, Math.floor(14 * (colW - 0.3) / maxItemWidth));
+  let useBullet = true;
+  const allItemTexts = columns.flatMap(col => (col.items || []).map(t => sanitizeText(t)));
+  const maxItemWidth14 = Math.max(0, ...allItemTexts.map(t => estimateTextWidth(t, 14)));
+  const textAreaW = colW - bulletIndent - 0.1; // bullet使用時のテキスト幅
+
+  if (maxItemWidth14 > textAreaW) {
+    // bullet無しなら収まるか確認
+    const noBulletW = colW - 0.1;
+    if (maxItemWidth14 <= noBulletW) {
+      // bullet無しで14ptなら1行に収まる
+      useBullet = false;
+    } else {
+      // bullet無し + フォント縮小
+      useBullet = false;
+      bodyFontSize = Math.max(10, Math.floor(14 * noBulletW / maxItemWidth14));
+    }
   }
-  // bodyHも2行折り返しに対応（フォント縮小しても超える場合）
-  const bodyH = maxItemWidth > (colW - 0.3) * 1.5 ? 0.45 : 0.25;
+
+  const effectiveW = useBullet ? textAreaW : (colW - 0.1);
+  const finalMaxW = Math.max(0, ...allItemTexts.map(t => estimateTextWidth(t, bodyFontSize)));
+  const maxLines = Math.ceil(finalMaxW / effectiveW);
+  const bodyH = maxLines > 1 ? Math.min(0.5, maxLines * bodyFontSize / 72 * 1.5) : 0.3;
   const totalH = headerH + gap + maxItems * (bodyH + gap);
   const baseY = centerY(totalH);
 
@@ -507,11 +523,14 @@ function layoutThreeColumn(pres, data, pageNum) {
 
     // Column items
     for (const item of (col.items || [])) {
-      slide.addText(sanitizeText(item), {
+      const itemText = sanitizeText(item);
+      const textOpts = {
         x, y, w: colW, h: bodyH,
         fontFace: FONT, fontSize: bodyFontSize, color: C.body, valign: "middle", autoFit: true,
-        bullet: true,
-      });
+      };
+      if (useBullet) textOpts.bullet = true;
+      else itemText && (textOpts.x = x + 0.05); // bullet無しの時は少し字下げ
+      slide.addText(useBullet ? itemText : "・ " + itemText, textOpts);
       y += bodyH + gap;
     }
 
