@@ -46,9 +46,19 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+// AI臭い装飾文字を除去
+function sanitizeText(text) {
+  if (!text) return "";
+  return text
+    .replace(/[─━—]+/g, " - ")   // em dash系 → ハイフン
+    .replace(/\s*-\s*-\s*/g, " - ") // 連続ハイフン正規化
+    .replace(/\s{2,}/g, " ")      // 連続スペース除去
+    .trim();
+}
+
 function truncateKeyMsg(text) {
   if (!text) return "";
-  // 27全角文字以内（"…"の分を1文字確保）
+  // 28全角文字以内（"…"の分を1文字確保）
   const limit = 27;
   let count = 0;
   let result = "";
@@ -82,7 +92,7 @@ function addBg(slide) {
 function addHeader(slide, titleText) {
   addBg(slide);
   // Title
-  slide.addText(titleText, {
+  slide.addText(sanitizeText(titleText), {
     x: HDR.titleX, y: HDR.titleY, w: HDR.titleW, h: HDR.titleH,
     fontFace: FONT, fontSize: 22, bold: true, color: C.title,
     valign: "middle",
@@ -101,7 +111,13 @@ function addHeader(slide, titleText) {
 
 function addKeyMsg(slide, text) {
   if (!text) return;
-  const msg = truncateKeyMsg(text);
+  const msg = sanitizeText(text);
+  // テキスト幅に応じてフォントサイズを動的縮小（省略「…」ではなく全文表示）
+  const availW = KM.w - 0.4; // 左右パディング
+  const estW = estimateTextWidth(msg, 18);
+  const fontSize = estW > availW
+    ? Math.max(12, Math.floor(18 * availW / estW))
+    : 18;
   // Background rounded rect
   slide.addShape("roundRect", {
     x: KM.x, y: KM.y, w: KM.w, h: KM.h,
@@ -110,7 +126,7 @@ function addKeyMsg(slide, text) {
   // Text
   slide.addText(msg, {
     x: KM.x, y: KM.y, w: KM.w, h: KM.h,
-    fontFace: FONT, fontSize: 18, bold: true, color: C.primary,
+    fontFace: FONT, fontSize, bold: true, color: C.primary,
     align: "center", valign: "middle",
   });
 }
@@ -222,24 +238,34 @@ function layoutTitle(pres, data) {
   addBg(slide);
 
   // SlideKit タイトルスライド: F5F5F5背景、左寄せ、赤アクセント
-  const titleH = 0.7;
   const redLineH = 0.04;
   const subtitleH = 0.35;
   const metaH = 0.25;
   const gap = 0.25;
   const metaGap = 0.12;
-
-  const totalH = titleH + gap + redLineH + gap + subtitleH + gap + metaH + metaGap + metaH;
-  const baseY = fullCenterY(totalH);
   const leftX = 1.2;
   const textW = SW - leftX - MARGIN;
 
+  // タイトル幅を推定し、折り返し行数に応じてtitleHとfontSizeを動的調整
+  const titleText = sanitizeText(data.title || "");
+  let titleFontSize = 32;
+  const titleEstW = estimateTextWidth(titleText, titleFontSize);
+  const titleLines = Math.ceil(titleEstW / (textW - 0.2));
+  if (titleLines > 2) {
+    // 3行以上になりそうならフォント縮小
+    titleFontSize = Math.max(22, Math.floor(32 * 2 / titleLines));
+  }
+  const titleH = Math.max(0.7, titleLines * titleFontSize / 72 * 1.4);
+
+  const totalH = titleH + gap + redLineH + gap + subtitleH + gap + metaH + metaGap + metaH;
+  const baseY = fullCenterY(totalH);
+
   let y = baseY;
 
-  // Main title — 左寄せ、大きめ
-  slide.addText(data.title || "", {
+  // Main title — 左寄せ、動的サイズ
+  slide.addText(titleText, {
     x: leftX, y, w: textW, h: titleH,
-    fontFace: FONT, fontSize: 32, bold: true, color: C.title,
+    fontFace: FONT, fontSize: titleFontSize, bold: true, color: C.title,
     valign: "middle", autoFit: true,
   });
   y += titleH + gap;
@@ -472,7 +498,7 @@ function layoutThreeColumn(pres, data, pageNum) {
     let y = baseY;
 
     // Column title
-    slide.addText(col.title || "", {
+    slide.addText(sanitizeText(col.title || ""), {
       x, y, w: colW, h: headerH,
       fontFace: FONT, fontSize: 16, bold: true, color: C.primary,
       valign: "middle", autoFit: true,
@@ -481,7 +507,7 @@ function layoutThreeColumn(pres, data, pageNum) {
 
     // Column items
     for (const item of (col.items || [])) {
-      slide.addText(item, {
+      slide.addText(sanitizeText(item), {
         x, y, w: colW, h: bodyH,
         fontFace: FONT, fontSize: bodyFontSize, color: C.body, valign: "middle", autoFit: true,
         bullet: true,
@@ -563,7 +589,7 @@ function layoutNumberedList(pres, data, pageNum) {
     });
 
     // Title
-    slide.addText(item.title || "", {
+    slide.addText(sanitizeText(item.title || ""), {
       x: textX, y, w: textW, h: titleH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
       valign: "middle", autoFit: true,
@@ -571,7 +597,7 @@ function layoutNumberedList(pres, data, pageNum) {
 
     // Description
     if (item.description && !item._hideDesc) {
-      slide.addText(item.description, {
+      slide.addText(sanitizeText(item.description), {
         x: textX, y: y + titleH + itemGap, w: textW, h: descH,
         fontFace: FONT, fontSize: 12, color: C.sub,
         valign: "top", autoFit: true,
@@ -602,19 +628,50 @@ function layoutDefinition(pres, data, pageNum) {
   const items = c.items || [];
   const barW = 0.04;
   const barGap = 0.15;
-  const headingH = 0.45;
-  const bodyH = 0.35;
   const gap = 0.1;
   const sepH = 0.015;
   const blockGap = 0.2;
+  const textX = MARGIN + barW + barGap;
+  const textW = CONTENT_W - barW - barGap;
 
-  const itemBlockH = headingH + gap + bodyH;
+  // heading/bodyの高さをテキスト長に応じて動的計算
+  const maxHeadingH = 0.45;
+  const maxBodyH = 0.35;
+  const safeH = BODY_H * 0.88;
+
+  // 各headingの推定行数
+  const headLineCounts = items.map(item => {
+    const w = estimateTextWidth(sanitizeText(item.title || ""), 14);
+    return Math.ceil(w / (textW - 0.2));
+  });
+  const maxHeadLines = Math.max(...headLineCounts);
+  const headingH = maxHeadLines > 1
+    ? Math.min(0.7, maxHeadLines * 14 / 72 * 1.5)
+    : maxHeadingH;
+
+  // BODY_Hに収まるようにbodyHを段階的に調整
+  let showDesc = true;
+  const rawBlockH = headingH + gap + maxBodyH;
+  const rawTotal = items.length * rawBlockH + (items.length - 1) * (blockGap + sepH + blockGap);
+  let bodyH = maxBodyH;
+  if (rawTotal > safeH) {
+    // Step 1: bodyHを縮小
+    const excess = rawTotal - safeH;
+    bodyH = Math.max(0.2, maxBodyH - excess / items.length);
+    // Step 2: それでも収まらなければdescription非表示
+    const shrunkBlock = headingH + gap + bodyH;
+    const shrunkTotal = items.length * shrunkBlock + (items.length - 1) * (blockGap + sepH + blockGap);
+    if (shrunkTotal > safeH) {
+      showDesc = false;
+      bodyH = 0;
+    }
+  }
+
+  const itemBlockH = showDesc ? headingH + gap + bodyH : headingH;
   const totalH = items.length * itemBlockH + (items.length - 1) * (blockGap + sepH + blockGap);
   const baseY = centerY(totalH);
 
   let y = baseY;
-  const textX = MARGIN + barW + barGap;
-  const textW = CONTENT_W - barW - barGap;
 
   items.forEach((item, i) => {
     // Red accent bar
@@ -624,18 +681,20 @@ function layoutDefinition(pres, data, pageNum) {
     });
 
     // Heading
-    slide.addText(item.title || "", {
+    slide.addText(sanitizeText(item.title || ""), {
       x: textX, y, w: textW, h: headingH,
       fontFace: FONT, fontSize: 14, bold: true, color: C.body,
       valign: "middle", autoFit: true,
     });
 
     // Body
-    slide.addText(item.description || "", {
-      x: textX, y: y + headingH + gap, w: textW, h: bodyH,
-      fontFace: FONT, fontSize: 12, color: C.sub,
-      valign: "top", autoFit: true,
-    });
+    if (showDesc && item.description) {
+      slide.addText(sanitizeText(item.description), {
+        x: textX, y: y + headingH + gap, w: textW, h: bodyH,
+        fontFace: FONT, fontSize: 12, color: C.sub,
+        valign: "top", autoFit: true,
+      });
+    }
 
     y += itemBlockH;
 

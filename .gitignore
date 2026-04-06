@@ -2,3 +2,4 @@ node_modules/
 dist/
 .venv/
 *.tgz
+scripts/office/__pycache__/
