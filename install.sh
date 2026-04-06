@@ -4,14 +4,75 @@
 
 set -euo pipefail
 
-# curl | bash は非対話シェルで .zshrc/.bashrc を読まないため、
+# curl | bash は非対話シェルでシェル初期化を読まないため、
 # nvm/nodebrew/Homebrew 等で入れた node や claude にPATHが通らない。
-# ユーザーのプロファイルを明示的にロードする。
-for f in "$HOME/.zprofile" "$HOME/.zshrc" "$HOME/.bash_profile" "$HOME/.bashrc" "$HOME/.profile"; do
-  [ -f "$f" ] && source "$f" 2>/dev/null || true
+# bash から直接 .zshrc を source せず、各シェル自身にPATHだけ出力させる。
+recover_path_from_shell() {
+  local shell_bin="$1"
+  local output=""
+  local marker="__CLAUDE_PPTX_PATH__"
+
+  [ -n "$shell_bin" ] || return 1
+  [ -x "$shell_bin" ] || return 1
+
+  output="$("$shell_bin" -lic "printf '${marker}%s\n' \"\$PATH\"" 2>/dev/null)" || return 1
+  output="${output##*${marker}}"
+  [ -n "$output" ] || return 1
+
+  PATH="$output"
+}
+
+for shell_bin in "${SHELL:-}" /bin/zsh /usr/bin/zsh /bin/bash /usr/bin/bash; do
+  recover_path_from_shell "$shell_bin" || true
 done
 
 REPO_RAW="https://raw.githubusercontent.com/knishida-td/claude-pptx-mcp/main"
+MCP_NAME="pptx"
+MCP_CONFIG_PATH="$HOME/.claude.json"
+
+read_user_mcp_config() {
+  python3 - "$MCP_CONFIG_PATH" "$1" <<'PY'
+import json
+import os
+import sys
+
+path, name = sys.argv[1], sys.argv[2]
+if not os.path.exists(path):
+    sys.exit(1)
+
+with open(path) as f:
+    data = json.load(f)
+
+server = data.get("mcpServers", {}).get(name)
+if server is None:
+    sys.exit(1)
+
+print(json.dumps(server, ensure_ascii=False))
+PY
+}
+
+write_user_mcp_config() {
+  python3 - "$MCP_CONFIG_PATH" "$1" "$2" <<'PY'
+import json
+import os
+import sys
+
+path, name, server_json = sys.argv[1], sys.argv[2], sys.argv[3]
+server = json.loads(server_json)
+
+data = {}
+if os.path.exists(path):
+    with open(path) as f:
+        data = json.load(f)
+
+mcp_servers = data.setdefault("mcpServers", {})
+mcp_servers[name] = server
+
+with open(path, "w") as f:
+    json.dump(data, f, indent=2, ensure_ascii=False)
+    f.write("\n")
+PY
+}
 
 echo "🔧 claude-pptx-mcp をインストールします..."
 
@@ -42,13 +103,38 @@ if ! command -v claude &>/dev/null; then
   exit 1
 fi
 
-# 既存登録を削除してから最新版で再登録（冪等性を保証）
-claude mcp remove --scope user pptx 2>/dev/null || true
-if claude mcp add --scope user pptx -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1; then
+# まず追加を試し、名前衝突時だけ既存設定を退避して置換する。
+existing_mcp_config="$(read_user_mcp_config "$MCP_NAME" 2>/dev/null || true)"
+add_output=""
+if add_output="$(claude mcp add --scope user "$MCP_NAME" -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1)"; then
+  echo "$add_output"
   echo "  MCPサーバーを登録しました（claude mcp add --scope user）"
 else
-  echo "❌ MCP登録に失敗しました。Claude Codeに一度ログインしてから再実行してください。"
-  exit 1
+  add_status=$?
+  echo "$add_output"
+
+  if [ -n "$existing_mcp_config" ] && printf '%s' "$add_output" | grep -Eiq 'already exists|already configured|already registered'; then
+    echo "  既存のMCP登録を最新版に更新します..."
+    claude mcp remove --scope user "$MCP_NAME" 2>/dev/null || true
+
+    if add_output="$(claude mcp add --scope user "$MCP_NAME" -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1)"; then
+      echo "$add_output"
+      echo "  MCPサーバーを更新しました（claude mcp add --scope user）"
+    else
+      echo "$add_output"
+      echo "  ⚠ 再登録に失敗したため、既存のMCP設定を復元します..."
+      write_user_mcp_config "$MCP_NAME" "$existing_mcp_config"
+      echo "❌ MCP登録に失敗しました。既存の設定は保持しています。Claude Codeに一度ログインしてから再実行してください。"
+      exit 1
+    fi
+  else
+    if [ -n "$existing_mcp_config" ]; then
+      echo "❌ MCP登録に失敗しました。既存の設定は変更していません。"
+    else
+      echo "❌ MCP登録に失敗しました。Claude Codeに一度ログインしてから再実行してください。"
+    fi
+    exit "$add_status"
+  fi
 fi
 
 # ── CLAUDE.md にPPTX生成ルールを追記（常に最新版に更新）──
