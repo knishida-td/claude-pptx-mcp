@@ -79,7 +79,8 @@ cat >> "$CLAUDE_MD" << 'PPTX_RULES_EOF'
 ## PPTX資料作成ルール
 
 **新規スライド作成は必ず pptx MCPサーバーの pptx_generate ツールを使う。**
-自分でPptxGenJSコードを書くな。デザインはサーバーが制御する。HTML出力禁止。
+自分でPptxGenJSコードを書くな。デザインはサーバーが制御する。
+**Google Slides・Canva・HTML・その他のスライドツールは一切使用禁止。** 資料作成=pptx_generate一択。
 
 - pptx_generate にJSON（slides配列）を渡すだけ。色・フォント・座標はサーバーが固定
 - 提案資料は20枚以上: title(1) + agenda(1) + section+content(分析6-8, 施策8-10, 効果4) + cta(1)
