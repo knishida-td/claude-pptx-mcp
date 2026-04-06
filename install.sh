@@ -76,19 +76,9 @@ PY
 
 echo "🔧 claude-pptx-mcp をインストールします..."
 
-# npxキャッシュをクリア（旧バージョンが使われるのを防止）
-echo "  npxキャッシュをクリア中..."
-npm cache clean --force 2>/dev/null || true
-# npx のパッケージキャッシュから claude-pptx-mcp を削除
-find "$(npm config get cache 2>/dev/null || echo "$HOME/.npm")" -path "*claude-pptx-mcp*" -exec rm -rf {} + 2>/dev/null || true
-# _npx キャッシュも削除
-find "$HOME/.npm/_npx" -path "*claude-pptx-mcp*" -exec rm -rf {} + 2>/dev/null || true
-echo "  キャッシュクリア完了"
-
 # ~/.claude ディレクトリを確保
 mkdir -p "$HOME/.claude"
 
-# MCPサーバー登録（claude mcp add を使用 — 確実に永続化される）
 # Node.js チェック
 if ! command -v node &>/dev/null; then
   echo "❌ Node.js が見つかりません。先にインストールしてください:"
@@ -103,36 +93,56 @@ if ! command -v claude &>/dev/null; then
   exit 1
 fi
 
-# まず追加を試し、名前衝突時だけ既存設定を退避して置換する。
+# ── リポジトリをローカルにclone（起動時にgit pullで常に最新化）──
+REPO_DIR="$HOME/.claude/mcp-servers/claude-pptx-mcp"
+REPO_URL="https://github.com/knishida-td/claude-pptx-mcp.git"
+
+if [ -d "$REPO_DIR/.git" ]; then
+  echo "  既存リポジトリを更新中..."
+  cd "$REPO_DIR" && git pull --ff-only -q 2>/dev/null || true
+else
+  echo "  リポジトリをclone中..."
+  mkdir -p "$(dirname "$REPO_DIR")"
+  rm -rf "$REPO_DIR"
+  git clone -q "$REPO_URL" "$REPO_DIR"
+  cd "$REPO_DIR"
+fi
+
+# 依存インストール + ビルド
+cd "$REPO_DIR"
+npm install -q 2>/dev/null || npm install
+if [ ! -f dist/index.js ] || [ src/index.ts -nt dist/index.js ]; then
+  npx tsc 2>/dev/null || true
+fi
+echo "  リポジトリセットアップ完了: $REPO_DIR"
+
+# ── launcher.shをインストール ──
+LAUNCHER="$HOME/.claude/scripts/pptx-mcp-launcher.sh"
+mkdir -p "$(dirname "$LAUNCHER")"
+cp "$REPO_DIR/scripts/launcher.sh" "$LAUNCHER"
+chmod +x "$LAUNCHER"
+echo "  ランチャーをインストールしました: $LAUNCHER"
+
+# ── MCPサーバー登録（launcher.sh経由 — 起動時にgit pullで常に最新）──
 existing_mcp_config="$(read_user_mcp_config "$MCP_NAME" 2>/dev/null || true)"
 add_output=""
-if add_output="$(claude mcp add --scope user "$MCP_NAME" -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1)"; then
+
+# 旧npx方式が残っていれば削除
+claude mcp remove --scope user "$MCP_NAME" 2>/dev/null || true
+
+if add_output="$(claude mcp add --scope user "$MCP_NAME" -- bash "$LAUNCHER" 2>&1)"; then
   echo "$add_output"
-  echo "  MCPサーバーを登録しました（claude mcp add --scope user）"
+  echo "  MCPサーバーを登録しました（launcher.sh経由・自動更新）"
 else
   add_status=$?
   echo "$add_output"
-
-  if [ -n "$existing_mcp_config" ] && printf '%s' "$add_output" | grep -Eiq 'already exists|already configured|already registered'; then
-    echo "  既存のMCP登録を最新版に更新します..."
-    claude mcp remove --scope user "$MCP_NAME" 2>/dev/null || true
-
-    if add_output="$(claude mcp add --scope user "$MCP_NAME" -- npx -y "github:knishida-td/claude-pptx-mcp" 2>&1)"; then
-      echo "$add_output"
-      echo "  MCPサーバーを更新しました（claude mcp add --scope user）"
-    else
-      echo "$add_output"
-      echo "  ⚠ 再登録に失敗したため、既存のMCP設定を復元します..."
-      write_user_mcp_config "$MCP_NAME" "$existing_mcp_config"
-      echo "❌ MCP登録に失敗しました。既存の設定は保持しています。Claude Codeに一度ログインしてから再実行してください。"
-      exit 1
-    fi
+  if [ -n "$existing_mcp_config" ]; then
+    echo "  ⚠ 再登録に失敗したため、既存のMCP設定を復元します..."
+    write_user_mcp_config "$MCP_NAME" "$existing_mcp_config"
+    echo "❌ MCP登録に失敗しました。既存の設定は保持しています。"
+    exit 1
   else
-    if [ -n "$existing_mcp_config" ]; then
-      echo "❌ MCP登録に失敗しました。既存の設定は変更していません。"
-    else
-      echo "❌ MCP登録に失敗しました。Claude Codeに一度ログインしてから再実行してください。"
-    fi
+    echo "❌ MCP登録に失敗しました。Claude Codeに一度ログインしてから再実行してください。"
     exit "$add_status"
   fi
 fi
