@@ -248,15 +248,20 @@ class DiagramKit:
     # バリデーション
     # ------------------------------------------------------------------
     def check_overflow(self, sl, slide_num=None):
-        """スライド内の全テキストの改行オーバーフローをチェック"""
+        """スライド内の全テキストの改行オーバーフローをチェック。
+        弾丸インデント(marL)とテキストフレームマージンを考慮。"""
         issues = []
         for s in sl.shapes:
             if not s.has_text_frame:
                 continue
+            tf = s.text_frame
             shape_w_pt = s.width / 12700
-            usable = shape_w_pt - 14.4  # 内部マージン
+            # テキストフレームの内部マージン（デフォルト91440 EMU = 7.2pt）
+            lm_pt = (tf.margin_left or 91440) / 12700
+            rm_pt = (tf.margin_right or 91440) / 12700
+            base_usable = shape_w_pt - lm_pt - rm_pt
 
-            for p in s.text_frame.paragraphs:
+            for p in tf.paragraphs:
                 full = ''.join(r.text for r in p.runs)
                 if not full.strip():
                     continue
@@ -267,6 +272,17 @@ class DiagramKit:
                         break
                 if not fs:
                     continue
+
+                # 段落のインデント(marL)を取得
+                indent_pt = 0
+                ns = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
+                pPr = p._p.find(f'{ns}pPr')
+                if pPr is not None:
+                    marL = pPr.get('marL')
+                    if marL:
+                        indent_pt = int(marL) / 12700
+
+                usable = base_usable - indent_pt
 
                 for line in full.split('\n'):
                     if not line.strip() or len(line) <= 3:
@@ -282,6 +298,7 @@ class DiagramKit:
                                 'font_pt': fs,
                                 'box_w_in': s.width / 914400,
                                 'overflow_pct': ovf,
+                                'indent_pt': indent_pt,
                             })
         return issues
 
