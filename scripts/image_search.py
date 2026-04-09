@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 """
-ぱくたそ画像検索・ダウンロードヘルパー
+画像検索・ダウンロード・サイズ計算ヘルパー
 
-Google検索でpakutaso.comから画像を検索し、CDN URLを取得してダウンロードする。
-pptx_generateやdiagram_helpersと組み合わせて使用。
+2つの画像取得方法をサポート:
+1. ぱくたそタグ検索（日本人ビジネス写真）
+2. 任意URLからのダウンロード（商品画像、WebSearchで見つけたURL等）
 
 Usage:
     from image_search import search_pakutaso, download_image, fit_image_size
 
-    # 検索してダウンロード
-    results = search_pakutaso("リモートワーク オンライン会議")
-    path = download_image(results[0]['url'], "/tmp/remote_work.jpg")
+    # ぱくたそから検索してダウンロード
+    path = search_and_download("リモートワーク", "/tmp/remote.jpg")
+
+    # 任意URLからダウンロード（商品画像等）
+    path = download_image("https://example.com/product.jpg", "/tmp/product.jpg")
 
     # アスペクト比維持でサイズ計算
     w, h = fit_image_size(path, max_w=2.7, max_h=1.5)
+
+    # PPTXに挿入（widthのみ指定でアスペクト比維持）
+    from pptx.util import Inches
+    slide.shapes.add_picture(path, Inches(x), Inches(y), Inches(w))
 """
 
 import json
