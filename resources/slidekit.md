@@ -256,6 +256,8 @@ ppt/slides/slide{N}.xml (+_rels) / docProps/app.xml / docProps/core.xml
 - リパック前に**全XMLをET.parse()で検証**
 - 画像0枚なら**空のmedia/ディレクトリを残さない**
 
+詳細チェックリストは [RULES.md](RULES.md) を参照。
+
 ---
 
 ## 作成ワークフロー
