@@ -164,7 +164,7 @@ pptx_generate はJSON形式のスライド定義を受け取り、SlideKitデザ
           }
         ]
       },
-      "keyMessage": "28文字以内のメッセージ"
+      "keyMessage": "24文字以内のメッセージ"
     },
     { "type": "cta", "title": "次のステップ", "items": [{ "label": "ラベル", "detail": "詳細" }] }
   ]
