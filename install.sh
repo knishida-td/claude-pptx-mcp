@@ -180,7 +180,7 @@ cat >> "$CLAUDE_MD" << 'PPTX_RULES_EOF'
 
 - pptx_generate にJSON（slides配列）を渡すだけ。色・フォント・座標はサーバーが固定
 - 提案資料は20枚以上: title(1) + agenda(1) + section+content(分析6-8, 施策8-10, 効果4) + cta(1)
-- KeyMsgは28全角文字以内
+- KeyMsgは24全角文字以内
 - 生成後は pptx_thumbnail で全スライドチェック → 問題ゼロまでループ
 - バージョン管理: _v1.pptx → _v2.pptx。上書き禁止
 <!-- pptx-mcp-rules -->
