@@ -134,6 +134,136 @@ Choose colors that match your topic — don't default to generic blue. Use these
 - Icons in small colored circles next to section headers
 - Italic accent text for key stats or taglines
 
+### 視線誘導の4原則（最重要）
+
+「とりあえずカード並べる」はgensparkっぽさの典型。代わりに以下で強調する:
+
+1. **サイズコントラスト**: 主役を他要素の2倍以上に。`hero-focus` レイアウトを使う
+2. **色のコントラスト**: プライマリ色は1スライドに1〜2箇所だけ
+3. **矢印で関係を示す**: `→` `↓` で因果/プロセス/Before→Afterを明示
+4. **空白で囲う**: ボックスではなく余白で主役を浮かせる
+
+### 数値は4点セット必須
+
+数値だけ置くのは禁止。「ラベル（何の数値か）／値／単位／補足」を必ず分離する:
+
+```
+❌ value: "8,200円"
+✅ value: "8,200", unit: "円", label: "LTV", sub: "既存顧客／年間"
+```
+
+`kpi` `bigtext` `sentence-diagram` レイアウトはすべてunit分離フィールドを持つ。
+
+### 1スライド1センテンスの構造化
+
+1スライドのメッセージは1文に絞る。1文を可視化するなら `sentence-diagram` レイアウトで:
+主語 / Before値 / After値 / 倍率バッジ / 補足 に分解する。横並び箇条書きにせず、構造を見せる。
+
+### 画像取得は Claude が自動で実行する（手動案内禁止）
+
+「資料作って」と言われたら、画像が必要なスライドについて Claude 自身がコマンドを実行して画像を取得すること。ユーザーに「この画像URLを取ってきてください」と案内するのは禁止。
+
+### アイコン vs 画像 の使い分け（重要）
+
+| 場所 | 使うべきもの | 使ってはいけないもの |
+|---|---|---|
+| **image-left / image-right の主画像** | 写真 or イラスト | アイコン単体（巨大なアイコン1枚はダサい） |
+| **image-hero のメイン画像** | 写真 or イラスト（フルブリード前提） | アイコン単体 |
+| **image-grid の各セル** | 各セルに写真 or イラスト | アイコン羅列（情報密度が低くなる） |
+| **image-comparison の Before/After** | 写真 or UIスクショ | アイコン |
+| **causal-chain のノード上部** | 小さなアイコン（装飾） | 写真/イラスト（うるさい） |
+| **bento の小カードの装飾** | 小さなアイコン | 写真 |
+
+**ルール**: 画像枠が大きい（=主役）なら **写真かイラスト**を入れる。アイコンは「小さい装飾」用途のみ。「アイコンで済ます」というショートカットはダサくなる。
+
+### 写真とイラストの選び方
+
+- **人物が登場するシーン**（職場・顧客・サービス利用） → ぱくたそ写真
+- **抽象概念の表現**（成長・分析・チーム・戦略） → undraw イラスト（プライマリ色に自動置換）
+- **特定商品・実物・UI** → WebSearch でURL特定 + DL+リサイズ
+
+### undraw のSVG URL自動取得フロー（Claude が実行）
+
+1. **WebSearch** で `undraw.co {テーマ}` を検索（例: "undraw shopping illustration"）
+2. 結果から `https://undraw.co/illustration/{slug}` の slug を抽出
+3. **直接URLを組み立てて取得**:
+   ```bash
+   node scripts/illustration_search.cjs "https://cdn.undraw.co/illustration/{slug}.svg" -o /tmp/img/i.png --color EF4823 --width 1200
+   ```
+4. 404が返ったら別の slug を試す（WebSearch結果が古いキャッシュの場合あり）
+
+実証済み: `online-shopping_hgf6` / `data-analysis_b7cp` / `teamwork_zplp` 等はcdn上に実在。
+
+**4つの取得経路:**
+
+1. **アイコン**（最速・最確実）
+   ```bash
+   node scripts/icon_gen.cjs FaChartLine -o /tmp/img/chart.png --color EF4823 --size 256
+   ```
+   react-icons の名前（CamelCase）+ color/size 指定だけ。対応ライブラリ: Fa / Hi / Hi2 / Md / Bi / Bs / Lu / Ri / Tb / Io / Io5 / Pi / Gi / Si / Ai
+
+2. **日本人写真**（ぱくたそ）
+   ```bash
+   python scripts/image_search.py pakutaso "リモートワーク" -o /tmp/img/scene.jpg
+   ```
+
+3. **商品/UI/画面**（WebSearch → URL → DL+リサイズ）
+   ```bash
+   # 1. WebSearchで「商品名 公式」で検索
+   # 2. WebFetchで画像URL特定
+   python scripts/image_search.py url "URL" -o /tmp/img/p.jpg --max-w-px 2400
+   ```
+
+4. **SVGイラスト**（undraw / Storyset 等）
+   ```bash
+   # 1. WebSearchで「undraw {テーマ} svg」検索
+   # 2. SVG URL取得
+   node scripts/illustration_search.cjs "URL" -o /tmp/img/i.png --color EF4823 --width 1200
+   ```
+
+**並列実行で高速化:**
+```bash
+mkdir -p /tmp/img
+node scripts/icon_gen.cjs FaChartLine -o /tmp/img/i1.png --color EF4823 &
+node scripts/icon_gen.cjs FaUsers -o /tmp/img/i2.png --color EF4823 &
+python scripts/image_search.py pakutaso "ECサイト" -o /tmp/img/scene.jpg &
+wait
+```
+
+**よく使うアイコン参照:**
+- 成長/上昇: `LuTrendingUp` / `FaChartLine`
+- 課題/警告: `FaExclamationTriangle` / `LuTriangleAlert`
+- 完了/チェック: `FaCheckCircle` / `LuShieldCheck`
+- 顧客/ユーザー: `FaUsers` / `LuUsers`
+- 売上/金額: `FaYenSign` / `FaDollarSign`
+- 時間/スケジュール: `FaClock` / `LuClock`
+- 戦略/ターゲット: `LuTarget`
+- アイデア: `HiOutlineLightBulb` / `FaLightbulb`
+- LINE/メール: `FaLine` / `FaEnvelope`
+- ロイヤルティ: `FaHeart`
+- 設定/プロセス: `FaCogs` / `LuSettings`
+- 矢印: `FaArrowRight` / `LuArrowRight`
+
+**JSONへの埋め込み:**
+
+image-* レイアウト:
+```json
+{ "type": "content", "layout": "image-left",
+  "content": { "image": { "path": "/tmp/img/scene.jpg" }, "heading": "...", "body": "..." } }
+```
+
+causal-chain / bento 等の任意配置:
+```json
+{ "type": "content", "layout": "causal-chain",
+  "content": {
+    "nodes": [...],
+    "images": [
+      { "path": "/tmp/img/i1.png", "x": 0.9, "y": 1.6, "w": 0.5, "h": 0.5 },
+      { "path": "/tmp/img/i2.png", "x": 3.6, "y": 1.6, "w": 0.5, "h": 0.5 }
+    ]
+  } }
+```
+
 ### Typography
 
 **Choose an interesting font pairing** — don't default to Arial. Pick a header font with personality and pair it with a clean body font.

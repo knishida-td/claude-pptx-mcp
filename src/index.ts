@@ -109,8 +109,26 @@ const DESIGN_RULES_SUMMARY = `
 ■ python-pptxでの図解追加時フォント階層: ヒーロー18pt bold / 見出し13pt bold / 本文11pt / キャプション9pt
 ■ 不要改行チェック: テキスト幅がボックス幅を超えないか必ず検証。全角≈font_size*1.05pt、半角≈0.6pt
 ■ 提案資料: 20枚以上
-■ 画像必須: テキストだけのプレゼン禁止。実物写真を使う
+■ 画像必須: テキストだけのプレゼン禁止。実物写真を使う。絵文字禁止
+■ アイコンと画像の使い分け（重要）:
+   - image-* レイアウトの主画像枠 → 写真かイラストを入れる。アイコン単体は禁止（ダサい）
+   - causal-chain のノード上やbentoの小装飾 → アイコン（react-icons）でOK
+■ 画像取得は自動: 「資料作って」と言われたら Claude 自身が以下のコマンドを実行して取得すること（手動案内禁止）
+   - 写真（人物シーン）: python scripts/image_search.py pakutaso "<query>" -o <path>
+   - イラスト（抽象概念）: WebSearchで undraw のslug特定 → node scripts/illustration_search.cjs "https://cdn.undraw.co/illustration/<slug>.svg" --color EF4823
+   - 商品/UI（実物）: WebSearchでURL → python scripts/image_search.py url "<URL>" --max-w-px 2400
+   - アイコン（小装飾のみ）: node scripts/icon_gen.cjs <IconName> --color EF4823 --size 256
 ■ バージョン管理: _v1.pptx → _v2.pptx。上書き禁止
+■ 数値は4点セット必須: 「ラベル（何の数値か）／値／単位／補足」を分離表示
+   - 例: label="LTV" value="8,200" unit="円" sub="既存顧客／年間"
+   - kpiレイアウトのmetrics、bigtextのunit/contextを使う。生で「8,200円」と書かない
+■ 視線誘導の原則（gensparkっぽさを避ける）:
+   - 全カード均一の枠線レイアウト禁止。サイズコントラスト/色のコントラスト/矢印/空白で強調する
+   - プライマリ色(EF4823)は1スライドに1〜2箇所だけ
+   - 主役要素は他の要素の2倍以上のサイズに
+   - カードを並べるだけでなく矢印(→/↓)で因果/フローを明示
+■ 1スライド1センテンス原則: メッセージは1つに絞る。複数主張するなら別スライドに分ける
+   - 1センテンスを構造化したい時は sentence-diagram レイアウトを使う（主語/Before→After/倍率/補足に分解）
 ■ 詳細はリソース pptx://slidekit, pptx://rules, pptx://pptxgenjs を参照
 ================================================`.trim();
 
@@ -176,7 +194,7 @@ pptx_generate はJSON形式のスライド定義を受け取り、SlideKitデザ
 ### 利用可能なレイアウト（type: "content" 用）
 | layout | 用途 | content構造 |
 |---|---|---|
-| bigtext | インパクト数値・主張 | { heading: "9,800億円", subtext: "補足説明" } |
+| bigtext | インパクト数値・主張（数値+単位を分離表示） | { heading: "9,800", unit: "億円", context: "日本のEC市場規模", subtext: "2024年実績" } |
 | two-column | 左右比較 | { left: { title, items: [] }, right: { title, items: [] } } |
 | three-column | 3つの並列項目 | { columns: [{ title, items: [] }, ...] } |
 | numbered-list | 番号付き手順・要点 | { items: [{ title, description }, ...] } |
@@ -185,11 +203,125 @@ pptx_generate はJSON形式のスライド定義を受け取り、SlideKitデザ
 | grid-2x2 | 2×2マトリクス | { cells: [{ title, description }, ...] } |
 | process-flow | 工程表示（3ステップまで） | { steps: [{ title, description }, ...] } |
 | vertical-steps | 4ステップ以上の工程 | { items: [{ title, description }, ...] } |
-| kpi | KPI/数値ハイライト | { metrics: [{ value, label, sub }, ...] } |
+| kpi | KPI/数値ハイライト（値+単位+ラベル+補足の4点セット） | { metrics: [{ value: "8,200", unit: "円", label: "LTV", sub: "既存顧客／年間" }, ...] } |
 | table | 表形式データ | { headers: [], rows: [[...], ...] } |
 | ab-choice | A/B選択提示 | { optionA: { title, subtitle, description }, optionB: { ... } } |
 | bullets | シンプル箇条書き | { items: ["項目1", "項目2", ...] } |
 | timeline | スケジュール | { phases: [{ label, title, width: 0.0-1.0 }, ...] } |
+| **sentence-diagram** | **1センテンスを構造化可視化（主語/Before→After/倍率/補足）** | { subject: "LTV", subjectSub: "既存定期顧客／年間", before: {value, unit, label?}, after: {value, unit, label?}, delta: {value: "×1.9", label: "倍率"}, support: "..." } |
+| **hero-focus** | **主役1+衛星2-4。サイズコントラストで視線誘導** | { hero: {value, unit, label, sub?}, satellites: [{label, value, unit?}, ...] } |
+| **bento** | **不均一グリッド（メイン1+サブ3-5）。枠線スパムを避ける構造** | { main: {title, body, accent?: true}, cells: [{title, body}, ...] } |
+| **causal-chain** | **因果関係フロー（A→B→C→D）2-4ノード横並び、矢印で連鎖** | { nodes: [{label, sub?}, ...], support?: "..." } |
+| **composition** | **要素合成（A+B+C=D）左に縦並び要素+右に結果、間に集約矢印** | { elements: [{label, sub?}, ...] (2-4), operator?: "+"\|"×", result: {label, sub?} } |
+| **decomposition** | **分解ツリー（A→B,C,D）上にroot+下に分岐2-4** | { root: {label, sub?}, branches: [{label, sub?}, ...] } |
+| **contrast-pair** | **対比/トレードオフ（A vs B）横並び2カラム+中央⇄記号** | { left: {label, items?, tag?, accent?}, right: {label, items?, tag?, accent?}, verdict?: "..." } |
+| **concept-map** | **論点マップ（中央テーマ+放射状ノード2-6）** | { center: {label, sub?}, nodes: [{label, sub?}, ...] } |
+| **image-left** | **左半分に画像、右半分にテキスト** | { image: {path, altText?}, heading?, body?, items?: [] } |
+| **image-right** | **右半分に画像、左半分にテキスト** | { image: {path, altText?}, heading?, body?, items?: [] } |
+| **image-hero** | **コンテンツ全面にヒーロー画像+下部にオーバーレイ** | { image: {path}, overlay: {title, sub?}, overlayPosition?: "bottom"\|"top"\|"center" } |
+| **image-grid** | **2-4枚の画像グリッド+各キャプション** | { items: [{image: {path}, caption?}, ...] (1-4) } |
+| **image-comparison** | **Before/After 画像比較（UI改修・商品差分等）** | { before: {image, label?, caption?}, after: {image, label?, caption?} } |
+
+### レイアウト選択の指針
+
+#### 数値表現
+- **数値1個を強調**: bigtext（unit/contextで意味を明示）
+- **数値複数を並列**: kpi（必ず unit + label + sub の4点セット）
+- **Before→After変化**: sentence-diagram（主語+矢印+倍率バッジで構造化）
+- **主役+補助メトリクス**: hero-focus（主役を3倍サイズで目線誘導）
+
+#### センテンス図解（1文を構造として可視化）
+- **「AによりBが起きてCになる」型**: causal-chain（因果連鎖）
+- **「AとBとCを組み合わせてDを実現」型**: composition（要素合成）
+- **「AはB+C+Dで構成される」型**: decomposition（分解ツリー）
+- **「AではなくB」「AとBはトレードオフ」型**: contrast-pair（対比）
+- **「中心テーマXに対して関連要素が複数ある」型**: concept-map（論点マップ）
+
+#### 情報構造
+- **異なる粒度の情報を1スライドに**: bento（メイン大+サブ複数の不均一グリッド）
+- **囲い枠を全カードに均一に並べるのは禁止**（gensparkっぽさの典型）。サイズコントラスト/色のコントラスト/矢印/空白で強調する
+
+#### 画像中心
+- **画像+説明**: image-left / image-right（半分画像+半分テキスト）
+- **インパクト画像**: image-hero（全面画像+オーバーレイ）
+- **商品ラインナップ/事例集**: image-grid（2-4枚+キャプション）
+- **UI改修・商品差分**: image-comparison（Before/After 横並び）
+- 画像未指定でもプレースホルダー（破線枠）が出るので、構成だけ先に固めて画像は後から差し込みOK
+
+### 画像取得ワークフロー（Claude が自動で実行）
+
+「資料作って」と言われたら、画像が入るスライド（image-* レイアウト、bento/hero-focus/causal-chain 等）について **Claude 自身がコマンドを実行して画像を取得する**。手動で URL を案内するのは禁止。
+
+#### アイコン vs 画像の使い分け（最重要）
+
+| 場所 | 入れるもの |
+|---|---|
+| image-left / image-right の主画像 | 写真 or イラスト（**アイコン単体は禁止**） |
+| image-hero のメイン画像 | 写真 or イラスト |
+| image-grid の各セル | 写真 or イラスト |
+| image-comparison の Before/After | 写真 or UIスクショ |
+| causal-chain のノード上部 | アイコン（小さい装飾） |
+| bento の小カードの装飾 | アイコン |
+
+ルール: 画像枠が大きいスライド（主役）は写真かイラストを必ず入れる。アイコンは causal-chain のノード上等の小装飾用途のみ。
+
+#### Step 1: 画像種別を判断
+
+| スライドの内容 | 推奨画像種別 |
+|---|---|
+| 人物が登場するシーン（職場・顧客・サービス利用） | ぱくたそ写真（image_search.py pakutaso） |
+| 抽象概念（成長・分析・チーム・戦略） | undraw イラスト（illustration_search.cjs） |
+| 特定商品、UI画面、実物 | WebSearch + image_search.py url |
+| ノード装飾・小さな視覚記号 | アイコン（icon_gen.cjs） |
+
+#### undraw 自動取得フロー
+
+1. WebSearch で \`undraw.co {テーマ}\` を検索（例: "undraw shopping illustration"）
+2. 結果から \`https://undraw.co/illustration/{slug}\` の slug を抽出
+3. \`node scripts/illustration_search.cjs "https://cdn.undraw.co/illustration/{slug}.svg" -o /tmp/img/X.png --color EF4823 --width 1200\` で取得
+4. 404 なら別の slug を試す
+
+#### Step 2: コマンドを実行（並列推奨）
+
+| 種別 | コマンド |
+|---|---|
+| アイコン | \`node scripts/icon_gen.cjs FaChartLine -o /tmp/img/chart.png --color EF4823 --size 256\` |
+| 日本人写真 | \`python scripts/image_search.py pakutaso "リモートワーク" -o /tmp/img/scene.jpg\` |
+| 商品/UI | WebSearchでURL特定 → \`python scripts/image_search.py url "URL" -o /tmp/img/p.jpg --max-w-px 2400\` |
+| SVGイラスト | WebSearchで undraw のSVG URL特定 → \`node scripts/illustration_search.cjs "URL" -o /tmp/img/i.png --color EF4823 --width 1200\` |
+
+複数取得する場合は Bash の \`&\` で並列実行し最後に \`wait\`。
+
+#### Step 3: JSONに埋め込む
+
+取得した画像パスを slide.content.image.path に渡す:
+\`\`\`json
+{
+  "type": "content",
+  "layout": "image-left",
+  "content": {
+    "image": { "path": "/tmp/img/chart.png", "altText": "成長グラフ" },
+    "heading": "施策の全体像",
+    "body": "..."
+  },
+  "keyMessage": "..."
+}
+\`\`\`
+
+#### よく使うアイコン参照
+
+| 用途 | react-icons 名 |
+|---|---|
+| 成長/上昇 | FaChartLine / HiOutlineTrendingUp / LuTrendingUp |
+| 警告/課題 | FaExclamationTriangle / HiOutlineExclamation |
+| チェック/完了 | FaCheckCircle / HiOutlineCheckCircle |
+| ユーザー/顧客 | FaUsers / HiOutlineUsers / LuUsers |
+| 金額/売上 | FaYenSign / FaDollarSign / HiOutlineCurrencyYen |
+| 時間/スケジュール | FaClock / HiOutlineClock / LuClock |
+| プロセス/フロー | FaCogs / HiOutlineCog / LuSettings |
+| 戦略/ターゲット | LuTarget / HiOutlineLightBulb |
+| 通信/LINE | FaLine / FaEnvelope / FaComments |
+| ハート/ロイヤルティ | FaHeart / HiOutlineHeart |
 
 ### 提案資料の構成（20枚以上必須）
 1. title（1枚）

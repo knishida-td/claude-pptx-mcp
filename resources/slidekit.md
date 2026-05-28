@@ -71,7 +71,7 @@ Type A/Bも Type D と同様、コンテンツ高さを実測して `bTop = (SH 
 
 | パターン | 用途 | 主要要素 |
 |---|---|---|
-| **大見出し+補足** | インパクト主張 | BigText + SepLine + SubText |
+| **大見出し+補足** | インパクト主張 | BigText + SepLine + SubText（数値+単位+context+subtext を分離指定可） |
 | **左右2カラム** | 比較・対比 | Header×2 + Items×2 + Divider |
 | **3カラムグリッド** | 並列3項目 | Subtitle + ColTitle×3 + ColBody×3 + Div×2 |
 | **番号付きリスト** | 手順・要点 | Num + Item + Sep (×N) |
@@ -82,6 +82,15 @@ Type A/Bも Type D と同様、コンテンツ高さを実測して `bTop = (SH 
 | **プロセスフロー** | 工程表示（3ステップまで） | Step(roundRect)×N + Arrow×(N-1) + Details |
 | **番号付き縦リスト** | 4ステップ以上の工程 | Num(circle) + Title + Desc (×N) + Sep |
 | **A/B選択肢** | 選択提示 | Label + Subtitle + Body (×2) + Divider |
+| **KPI（4点セット）** | 数値ハイライト | Value(大) + Unit(中) + Label(下) + Sub(注釈) ×N + Divider |
+| **sentence-diagram** | 1センテンス構造化（Before→After） | Subject(大) + SubjectSub + ↓ + BeforeCard + → + AfterCard + DeltaBadge + Support |
+| **hero-focus** | 主役+衛星 | Heroカード(大、左) + Satellites(小、右縦並び 2-4) |
+| **bento** | 不均一グリッド | Mainパネル(大、左) + Cells(小、右縦並び 3-5) |
+| **causal-chain** | 因果連鎖 A→B→C | Node×N（横並び2-4）+ Arrow×(N-1) + Support |
+| **composition** | 要素合成 A+B+C=D | 左に縦並び要素2-4 + 演算子 + 大矢印 + 右に結果カード |
+| **decomposition** | 分解ツリー A=B+C+D | 上にRoot + 縦の幹 + 横の枝 + 下にBranch×N（2-4） |
+| **contrast-pair** | 対比/トレードオフ A vs B | 左カード + 中央⇄記号 + 右カード + 下にVerdict |
+| **concept-map** | 論点マップ（放射状） | 中央テーマカード + 周辺ノード2-6を円周上に + 接続線 |
 
 ### 矢印の方向
 
