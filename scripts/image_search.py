@@ -201,6 +201,86 @@ def fit_image_size(path: str, max_w: float = None, max_h: float = None
     return (w, h)
 
 
+def resize_to_fit(src_path: str, dst_path: str,
+                  max_w_px: int = 2400, max_h_px: int = None) -> str:
+    """画像を最大ピクセル数に収まるようリサイズ（アスペクト比維持）。
+
+    商品スクショなどが大きすぎるとPPTXファイルサイズが膨らむため、
+    スライド挿入前にこれで縮小する。PILがなければコピーのみ。
+
+    Args:
+        src_path: 入力画像パス
+        dst_path: 出力画像パス（同じでOK）
+        max_w_px: 最大幅ピクセル
+        max_h_px: 最大高さピクセル（指定時のみ評価）
+
+    Returns:
+        保存先パス
+    """
+    if Image is None:
+        if src_path != dst_path:
+            import shutil
+            shutil.copyfile(src_path, dst_path)
+        return dst_path
+
+    img = Image.open(src_path)
+    w, h = img.size
+
+    scale = 1.0
+    if max_w_px and w > max_w_px:
+        scale = min(scale, max_w_px / w)
+    if max_h_px and h > max_h_px:
+        scale = min(scale, max_h_px / h)
+
+    if scale >= 1.0:
+        if src_path != dst_path:
+            img.save(dst_path)
+        return dst_path
+
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    resized = img.resize((new_w, new_h), Image.LANCZOS)
+    # RGBA→RGB変換（JPEG保存時のエラー回避）
+    if dst_path.lower().endswith(('.jpg', '.jpeg')) and resized.mode in ('RGBA', 'P'):
+        resized = resized.convert('RGB')
+    save_kwargs = {'quality': 90} if dst_path.lower().endswith(('.jpg', '.jpeg')) else {}
+    resized.save(dst_path, **save_kwargs)
+    return dst_path
+
+
+def download_and_resize(url: str, save_path: str,
+                        max_w_px: int = 2400, max_h_px: int = None) -> str | None:
+    """商品スクショ等を任意URLからDL→自動リサイズ。
+
+    WebSearch/WebFetchで見つけた商品画像URLを渡すと、
+    スライド挿入に適したサイズに整えて保存する。
+
+    Args:
+        url: 画像のURL
+        save_path: 保存先パス
+        max_w_px: リサイズ後の最大幅px（デフォルト2400）
+        max_h_px: 最大高さpx（任意）
+
+    Returns:
+        保存先パス、失敗時None
+    """
+    tmp_path = save_path + '.raw'
+    if not download_image(url, tmp_path):
+        return None
+    try:
+        resize_to_fit(tmp_path, save_path, max_w_px, max_h_px)
+        os.remove(tmp_path) if os.path.exists(tmp_path) else None
+        w, h = get_image_size(save_path)
+        print(f"Downloaded+Resized: {url} -> {save_path} ({w}x{h})")
+        return save_path
+    except Exception as e:
+        print(f"Resize failed: {e}", file=sys.stderr)
+        # リサイズ失敗時は raw をそのまま採用
+        if os.path.exists(tmp_path):
+            os.rename(tmp_path, save_path)
+        return save_path
+
+
 def search_and_download(query: str, save_path: str, size: str = 'S',
                         index: int = 0) -> str | None:
     """検索→ダウンロードを一括実行。
@@ -243,17 +323,39 @@ def search_and_download(query: str, save_path: str, size: str = 'S',
 # === CLI ===
 if __name__ == '__main__':
     import argparse
-    parser = argparse.ArgumentParser(description='ぱくたそ画像検索・ダウンロード')
-    parser.add_argument('query', help='検索キーワード')
-    parser.add_argument('-o', '--output', default='/tmp/pakutaso_image.jpg',
-                        help='保存先パス')
-    parser.add_argument('-s', '--size', choices=['S', 'M', 'L'], default='S',
-                        help='画像サイズ (S=800px, M=1600px, L=原寸)')
-    parser.add_argument('--max-w', type=float, help='最大幅 (inch)')
-    parser.add_argument('--max-h', type=float, help='最大高さ (inch)')
+    parser = argparse.ArgumentParser(description='画像検索・ダウンロード・リサイズ')
+    sub = parser.add_subparsers(dest='cmd')
+
+    # pakutaso (default backward compatible: positional query)
+    p_pak = sub.add_parser('pakutaso', help='ぱくたそから検索DL')
+    p_pak.add_argument('query', help='検索キーワード')
+    p_pak.add_argument('-o', '--output', default='/tmp/pakutaso_image.jpg')
+    p_pak.add_argument('-s', '--size', choices=['S', 'M', 'L'], default='S')
+    p_pak.add_argument('--max-w', type=float, help='最大幅 (inch)')
+    p_pak.add_argument('--max-h', type=float, help='最大高さ (inch)')
+
+    # url (商品スクショ等を任意URLから)
+    p_url = sub.add_parser('url', help='任意URLからDL+リサイズ')
+    p_url.add_argument('url', help='画像URL')
+    p_url.add_argument('-o', '--output', default='/tmp/downloaded.jpg')
+    p_url.add_argument('--max-w-px', type=int, default=2400,
+                       help='リサイズ後の最大幅 px')
+    p_url.add_argument('--max-h-px', type=int, default=None,
+                       help='リサイズ後の最大高さ px')
+
+    # 後方互換: 引数を直接付けた場合は pakutaso 扱い
+    import sys as _sys
+    if len(_sys.argv) > 1 and _sys.argv[1] not in ('pakutaso', 'url', '-h', '--help'):
+        _sys.argv.insert(1, 'pakutaso')
+
     args = parser.parse_args()
 
-    path = search_and_download(args.query, args.output, args.size)
-    if path and (args.max_w or args.max_h):
-        w, h = fit_image_size(path, args.max_w, args.max_h)
-        print(f"Recommended size: {w:.2f} x {h:.2f} inch")
+    if args.cmd == 'url':
+        path = download_and_resize(args.url, args.output, args.max_w_px, args.max_h_px)
+        if not path:
+            _sys.exit(1)
+    else:
+        path = search_and_download(args.query, args.output, args.size)
+        if path and (args.max_w or args.max_h):
+            w, h = fit_image_size(path, args.max_w, args.max_h)
+            print(f"Recommended size: {w:.2f} x {h:.2f} inch")
